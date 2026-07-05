@@ -221,7 +221,22 @@ const rand=(a,b)=>a+Math.random()*(b-a);
 
 /* ============ 소리 ============ */
 let AC=null, muted=false;
-function audio(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } if(AC&&AC.state==='suspended')AC.resume(); }
+let unlockEl=null;
+function iosUnlock(){
+  try{
+    if(!unlockEl){
+      unlockEl=document.createElement('audio');
+      unlockEl.setAttribute('playsinline','');
+      unlockEl.src='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    }
+    const pr=unlockEl.play(); if(pr&&pr.catch)pr.catch(()=>{});
+  }catch(e){}
+}
+function audio(){
+  if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
+  if(AC&&(AC.state==='suspended'||AC.state==='interrupted')){try{AC.resume();}catch(e){}}
+  iosUnlock();
+}
 function beep(f,d,type,vol,delay){
   if(muted||!AC)return;
   try{
@@ -240,7 +255,7 @@ const sLevel=()=>{[523,659,784,1047].forEach((f,i)=>beep(f,.22,'sine',.11,i*.11)
 const sCoin=()=>{beep(880,.07,'square',.05);beep(1320,.1,'square',.05,.06);};
 
 /* ---- 배경 음악 (포근한 음악상자 멜로디) ---- */
-let musicOn=true, mgain=null, mTimer=null, mNext=0, mStep=0;
+let musicOn=true, bgmWanted=false, mgain=null, mTimer=null, mNext=0, mStep=0;
 const NF=m=>440*Math.pow(2,(m-69)/12);
 const MEL_A=[72,0,76,0,79,0,76,0, 81,0,79,0,76,0,74,0, 72,0,76,0,79,0,84,0, 81,0,79,77,76,0,74,0];
 const MEL_B=[79,0,84,0,88,0,84,0, 86,0,84,0,81,0,79,0, 76,0,79,0,84,0,88,0, 86,84,81,79,76,0,72,0];
@@ -278,7 +293,7 @@ function startMusic(){
   if(!mTimer)mTimer=setInterval(musicTick,180);
   mNext=Math.max(mNext,AC.currentTime+0.15);
 }
-function setMusic(on){musicOn=on;if(S)S.music=on;if(on)startMusic();}
+function setMusic(on){musicOn=on;bgmWanted=on;if(S)S.music=on;if(on)startMusic();}
 
 /* ============ 게임 데이터 ============ */
 const TILE=48, MAP_W=40, MAP_H=30;
@@ -1815,6 +1830,7 @@ function loop(){
 for(const id in NPCS){NPCS[id].px=NPCS[id].tx*TILE+24;NPCS[id].py=NPCS[id].ty*TILE+30;}
 document.addEventListener('touchmove',e=>{if(!(e.target.closest&&e.target.closest('#mbody')))e.preventDefault();},{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('pointerdown',()=>{if(bgmWanted&&musicOn){audio();startMusic();}},true);
 
 (async function init(){
   const saved=await loadGame();
@@ -1824,7 +1840,10 @@ document.addEventListener('gesturestart',e=>e.preventDefault());
   $('nameinput').value=pname();
   requestAnimationFrame(loop);
   setInterval(saveGame,15000);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)saveGame();
+    else if(bgmWanted&&musicOn){audio();startMusic();}
+  });
 })();
 
 function applyName(){
@@ -1834,7 +1853,8 @@ function applyName(){
 }
 $('startbtn').addEventListener('pointerdown',()=>{
   audio(); sYes(); applyName();
-  if(S&&S.music!==false)startMusic();
+  bgmWanted=S&&S.music!==false;
+  if(bgmWanted)startMusic();
   $('intro').style.display='none';
   if(S&&!S.tutorial){S.tutorial=true;tutoStep=1;toast('🕹️ 화면 왼쪽을 문질러 움직여요!');}
   else toast('🌸 다시 온 걸 환영해요, '+pname()+' 공주님!');
@@ -1848,7 +1868,7 @@ $('newbtn').addEventListener('pointerdown',()=>{
   updateHUD(); $('intro').style.display='none';
   S.tutorial=true; tutoStep=1;
   toast('🕹️ 화면 왼쪽을 문질러 움직여요!');
-  sYes(); startMusic(); saveGame();
+  sYes(); bgmWanted=true; startMusic(); saveGame();
 });
 </script>
 </body>
