@@ -283,10 +283,44 @@ const sCoin=()=>{beep(880,.07,'square',.05);beep(1320,.1,'square',.05,.06);};
 /* ---- 배경 음악 (포근한 음악상자 멜로디) ---- */
 let musicOn=true, bgmWanted=false, mgain=null, mTimer=null, mNext=0, mStep=0;
 const NF=m=>440*Math.pow(2,(m-69)/12);
-const MEL_A=[72,0,76,0,79,0,76,0, 81,0,79,0,76,0,74,0, 72,0,76,0,79,0,84,0, 81,0,79,77,76,0,74,0];
-const MEL_B=[79,0,84,0,88,0,84,0, 86,0,84,0,81,0,79,0, 76,0,79,0,84,0,88,0, 86,84,81,79,76,0,72,0];
-const MBASS={0:48,4:55,8:45,12:52,16:41,20:48,24:43,28:50};
-const MCHORD=[[60,64,67],[57,60,64],[53,57,60],[55,59,62]];
+/* 지역별 배경음악: 왕국/성 안/목장/야생 초원/눈꽃 산 */
+const TRACKS={
+  main:{tempo:0.25,w:'sine',
+    a:[72,0,76,0,79,0,76,0, 81,0,79,0,76,0,74,0, 72,0,76,0,79,0,84,0, 81,0,79,77,76,0,74,0],
+    b:[79,0,84,0,88,0,84,0, 86,0,84,0,81,0,79,0, 76,0,79,0,84,0,88,0, 86,84,81,79,76,0,72,0],
+    bass:{0:48,4:55,8:45,12:52,16:41,20:48,24:43,28:50},
+    ch:[[60,64,67],[57,60,64],[53,57,60],[55,59,62]]},
+  castle:{tempo:0.30,w:'sine',
+    a:[72,0,0,76,0,0,79,0,0,76,0,0,74,0,0,0, 71,0,0,74,0,0,77,0,0,74,0,0,72,0,0,0],
+    b:[76,0,0,79,0,0,83,0,0,79,0,0,77,0,0,0, 74,0,0,77,0,0,81,0,0,77,0,0,76,0,0,0],
+    bass:{0:48,6:52,12:43,18:47,24:45,30:50},
+    ch:[[57,60,64],[55,59,62],[53,57,60],[55,59,62]]},
+  ranch:{tempo:0.21,w:'triangle',
+    a:[67,0,72,0,76,72,67,0, 69,0,74,0,77,74,69,0, 67,0,72,0,76,72,79,0, 77,76,74,72,69,67,65,0],
+    b:[72,0,76,0,79,76,72,0, 74,0,77,0,81,77,74,0, 72,0,76,0,79,76,84,0, 81,79,77,76,74,72,71,0],
+    bass:{0:43,4:50,8:45,12:52,16:43,20:50,24:47,28:48},
+    ch:[[55,59,62],[60,64,67],[53,57,60],[55,59,62]]},
+  meadow:{tempo:0.24,w:'sine',
+    a:[69,0,72,0,76,0,74,72, 69,0,72,0,74,0,72,0, 69,0,72,0,76,0,79,0, 77,76,74,72,74,0,69,0],
+    b:[76,0,79,0,81,0,79,77, 76,0,74,0,72,0,74,0, 76,0,79,0,81,0,84,0, 81,79,77,76,74,0,76,0],
+    bass:{0:45,8:41,16:43,24:40},
+    ch:[[57,60,64],[53,57,60],[52,55,59],[57,60,64]]},
+  snow:{tempo:0.32,w:'sine',hi:0.02,
+    a:[84,0,0,0,88,0,0,0, 86,0,0,0,83,0,0,0, 84,0,0,0,88,0,0,0, 91,0,88,0,86,0,84,0],
+    b:[88,0,0,0,91,0,0,0, 89,0,0,0,86,0,0,0, 88,0,0,0,84,0,0,0, 86,0,84,0,81,0,79,0],
+    bass:{0:52,16:48},
+    ch:[[60,64,67],[57,60,64],[65,69,72],[55,59,62]]},
+};
+let mCur='main';
+function curTrackId(){
+  if(!S)return 'main';
+  if(world==='in')return 'castle';
+  const txp=player.x/TILE;
+  if(txp>=GATE3_X)return 'snow';
+  if(txp>=GATE2_X)return 'meadow';
+  if(txp>=GATE1_X)return 'ranch';
+  return 'main';
+}
 function mnote(f,t,d,type,vol){
   if(!AC||!mgain)return;
   try{
@@ -298,20 +332,25 @@ function mnote(f,t,d,type,vol){
     o.connect(g);g.connect(mgain);o.start(t);o.stop(t+d+0.06);
   }catch(e){}
 }
-function schedStep(i,t,loopN){
-  const mel=(loopN%4>=2?MEL_B:MEL_A)[i];
-  if(mel){mnote(NF(mel),t,0.5,'sine',0.05);mnote(NF(mel)*2,t,0.32,'sine',0.011);}
-  if(MBASS[i]!==undefined)mnote(NF(MBASS[i]),t,0.42,'triangle',0.045);
-  if(i%8===0)MCHORD[i/8].forEach(nn=>mnote(NF(nn),t,1.6,'sine',0.013));
-  if((i===14||i===30)&&(loopN+i)%3===0)mnote(NF(91+((loopN+i)%2)*5),t,0.7,'sine',0.018);
+function schedStep(i,t,loopN,trk){
+  const mel=(loopN%2?trk.b:trk.a)[i];
+  if(mel){mnote(NF(mel),t,trk.tempo*2,trk.w,0.05);mnote(NF(mel)*2,t,trk.tempo*1.3,'sine',trk.hi||0.011);}
+  if(trk.bass[i]!==undefined)mnote(NF(trk.bass[i]),t,trk.tempo*1.7,'triangle',0.045);
+  if(i%8===0)trk.ch[i/8].forEach(nn=>mnote(NF(nn),t,trk.tempo*6,'sine',0.013));
+  if((i===14||i===30)&&(loopN+i)%3===0)mnote(NF(91),t,0.7,'sine',0.016);
 }
 function musicTick(){
   if(!AC||!musicOn||!S)return;
   if(AC.state==='suspended')return;
   const ct=AC.currentTime;
   if(mNext<ct-0.05)mNext=ct+0.08;
-  const ahead=ct+0.7;
-  while(mNext<ahead){schedStep(mStep%32,mNext,Math.floor(mStep/32));mNext+=0.25;mStep++;}
+  const ahead=ct+0.8;
+  while(mNext<ahead){
+    if(mStep%32===0)mCur=curTrackId();
+    const trk=TRACKS[mCur]||TRACKS.main;
+    schedStep(mStep%32,mNext,Math.floor(mStep/32),trk);
+    mNext+=trk.tempo;mStep++;
+  }
 }
 function startMusic(){
   audio(); if(!AC)return;
@@ -322,7 +361,7 @@ function startMusic(){
 function setMusic(on){musicOn=on;bgmWanted=on;if(S)S.music=on;if(on)startMusic();}
 
 /* ============ 게임 데이터 ============ */
-const TILE=48, MAP_W=62, MAP_H=30;
+const TILE=48, MAP_W=84, MAP_H=30;
 
 const META={
   carrotSeed:{n:'당근 씨앗',i:'🌱',buy:5},
@@ -335,6 +374,7 @@ const META={
   mushroom:{n:'버섯',i:'🍄'},
   cherry:{n:'체리',i:'🍒'},
   egg:{n:'알',i:'🥚',sell:7}, wool:{n:'양털',i:'🧶',sell:14}, milk:{n:'우유',i:'🥛',sell:20},
+  iceflower:{n:'얼음꽃',i:'❄️',sell:15},
   f1:{n:'붕어',i:'🐟',sell:8}, f2:{n:'열대어',i:'🐠',sell:15},
   f3:{n:'복어',i:'🐡',sell:25}, f4:{n:'무지개 물고기',i:'✨',sell:50},
 };
@@ -436,7 +476,9 @@ for(let y=0;y<MAP_H;y++){const row=[];for(let x=0;x<MAP_W;x++){
 // 길: 성에서 아래로 + 밭으로 + 사슴 쪽으로
 for(let y=7;y<=22;y++){tiles[y][19]=3;tiles[y][20]=3;}
 for(let x=20;x<=29;x++){tiles[11][x]=3;}
-for(let x=30;x<=60;x++){tiles[11][x]=3;tiles[12][x]=3;}
+// 눈꽃 산 (동쪽 끝)
+for(let y=0;y<25;y++)for(let x=62;x<MAP_W;x++){tiles[y][x]=4;}
+for(let x=30;x<=82;x++){tiles[11][x]=3;tiles[12][x]=3;}
 for(let x=14;x<=19;x++){tiles[18][x]=3;}
 
 const TREES=[ // [타일x, 타일y, 이모지]
@@ -447,10 +489,13 @@ const TREES=[ // [타일x, 타일y, 이모지]
  [25,16,'🌳'],[30,18,'🌲'],[34,20,'🌳'],[23,19,'🌳'],[14,6.5,'🌲'],[25,5,'🌳'],
  [41,4,'🌳'],[45,5,'🌲'],[50,4,'🌳'],[41,21,'🌲'],[50,21,'🌳'],
  [54,3,'🌲'],[58,4,'🌳'],[61,8,'🌲'],[53,21,'🌳'],[58,21,'🌲'],[60.5,17,'🌳'],
+ [64,4,'🌲'],[68,6,'🌲'],[73,3.5,'🏔️'],[78,5,'🌲'],[82,9,'🌲'],
+ [65,20,'🌲'],[70,21,'🌲'],[76,19,'🌲'],[81,20,'🌲'],[79,14,'⛄'],[66,9.5,'⛄'],
 ];
 const BUSHES=[[13,9,'🌿'],[22,16,'🌿'],[27,13,'🌷'],[17,15,'🌼'],[24,8,'🌼'],[8,13,'🌿'],
  [32,16,'🌷'],[16,20,'🌼'],[10,6,'🌿'],[5,14,'🌼'],[29,20,'🌿'],[33,9,'🌷'],
- [43,8,'🌼'],[49,19,'🌿'],[54,6,'🌾'],[57,12,'🌾'],[55,17,'🌾'],[59,9,'🌾'],[60,19,'🌾'],[56,20.5,'🌿']];
+ [43,8,'🌼'],[49,19,'🌿'],[54,6,'🌾'],[57,12,'🌾'],[55,17,'🌾'],[59,9,'🌾'],[60,19,'🌾'],[56,20.5,'🌿'],
+ [67,14,'❄️'],[74,16,'❄️'],[80,7,'❄️'],[63.5,7.5,'❄️'],[71,9,'❄️'],[77,21.5,'❄️']];
 const SHELLS=[[6,23.6,'🐚'],[14,24.2,'🐚'],[24,23.7,'⭐'],[31,24.1,'🐚'],[36,23.6,'🦀'],
  [44,24,'🐚'],[51,23.7,'⭐'],[58,24.1,'🦀']];
 
@@ -462,6 +507,7 @@ const FORAGE_DEF=[
  {tx:3,ty:11,k:'cherry'},{tx:11,ty:7,k:'cherry'},{tx:6,ty:20,k:'cherry'},{tx:12.5,ty:17.5,k:'cherry'},
  {tx:43,ty:20.5,k:'flower'},{tx:49,ty:8,k:'flower'},{tx:57,ty:7,k:'mushroom'},
  {tx:55,ty:19,k:'cherry'},{tx:60,ty:14,k:'cherry'},{tx:53.5,ty:10,k:'flower'},
+ {tx:65,ty:15,k:'iceflower'},{tx:70,ty:6,k:'iceflower'},{tx:76,ty:10,k:'iceflower'},{tx:81,ty:16,k:'iceflower'},
 ];
 const PLOT_DEF=[];
 for(const py of [10,12.2,14.4]) for(const px of [30,32,34]) PLOT_DEF.push({tx:px,ty:py});
@@ -470,7 +516,7 @@ const CASTLE={x:15.5*TILE,y:1*TILE,w:9*TILE,h:6*TILE}; // 통과 불가 영역
 const BFLIES=[{x:8,y:14,p:0},{x:22,y:15,p:2},{x:30,y:13,p:4},{x:47,y:17,p:1},{x:57,y:15,p:3}];
 
 /* ---- 동쪽 확장: 울타리 문 / 목장 / 야생 초원 ---- */
-const GATE1_X=40, GATE2_X=52, GATE_Y1=10.7, GATE_Y2=13.3;
+const GATE1_X=40, GATE2_X=52, GATE3_X=62, GATE_Y1=10.7, GATE_Y2=13.3;
 const RANCH_PENS=[{tx:42,ty:14.6},{tx:46.8,ty:14.6},{tx:42,ty:19}];
 const PEN_W=3.8, PEN_H=3.2;
 const MUMU={e:'👨🏻‍🌾',n:'목장지기 무무',tx:45.3,ty:9.7};
@@ -485,6 +531,8 @@ const PETSPEC={
   hedge:{e:'🦔',n:'가시돌이',rar:1}, owl:{e:'🦉',n:'부엉씨',rar:1}, turtle:{e:'🐢',n:'느림보',rar:1},
   fox2:{e:'🦊',n:'은빛여우',rar:2}, deer2:{e:'🦌',n:'별사슴',rar:2},
   uni:{e:'🦄',n:'유니',rar:3}, drag:{e:'🐉',n:'용용이',rar:3},
+  snowbun:{e:'🐰',n:'눈토끼',rar:0,zn:'snow'}, peng:{e:'🐧',n:'펭펭',rar:1,zn:'snow'},
+  seal:{e:'🦭',n:'몽실이',rar:2,zn:'snow'}, pbear:{e:'🐻‍❄️',n:'하양이',rar:3,zn:'snow'},
 };
 const RARN=[
   {n:'일반',c:'#8fa3ad',zone:0.34,spd:1.0},
@@ -493,16 +541,20 @@ const RARN=[
   {n:'전설',c:'#e6a817',zone:0.10,spd:2.0},
 ];
 const WILD_ZONE={x0:53,x1:60.8,y0:4.5,y1:21.5};
+const SNOW_WILD={x0:63.5,x1:82.5,y0:4.5,y1:21.5};
 let wilds=[], wildTimer=3, gateHintT=0;
 function spawnWild(){
-  if(!S||curRank()<3||wilds.length>=3)return;
+  if(!S||curRank()<3||wilds.length>=4)return;
+  const zn=(curRank()>=4&&Math.random()<0.5)?'snow':'meadow';
   let r=Math.random(), rar=r<0.02?3:(r<0.12?2:(r<0.40?1:0));
   if(rar===3&&curRank()<4)rar=2;
-  const pool=Object.keys(PETSPEC).filter(k=>PETSPEC[k].rar===rar);
+  const pool=Object.keys(PETSPEC).filter(k=>PETSPEC[k].rar===rar&&(PETSPEC[k].zn||'meadow')===zn);
+  if(!pool.length)return;
   const sp=pool[Math.floor(Math.random()*pool.length)];
-  const x=(WILD_ZONE.x0+Math.random()*(WILD_ZONE.x1-WILD_ZONE.x0))*TILE;
-  const y=(WILD_ZONE.y0+Math.random()*(WILD_ZONE.y1-WILD_ZONE.y0))*TILE;
-  wilds.push({sp,x,y,wx:x,wy:y,wt:0});
+  const Z=zn==='snow'?SNOW_WILD:WILD_ZONE;
+  const x=(Z.x0+Math.random()*(Z.x1-Z.x0))*TILE;
+  const y=(Z.y0+Math.random()*(Z.y1-Z.y0))*TILE;
+  wilds.push({sp,zn,x,y,wx:x,wy:y,wt:0});
 }
 
 /* ---- 미니맵 밑그림 ---- */
@@ -511,7 +563,7 @@ const mmBase=document.createElement('canvas');mmBase.width=MAP_W*3;mmBase.height
   const m=mmBase.getContext('2d');
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     const t=tiles[y][x];
-    m.fillStyle=t===1?'#7ec8ea':t===2?'#f2dfae':t===3?'#e9cfa4':'#9fd48a';
+    m.fillStyle=t===1?'#7ec8ea':t===2?'#f2dfae':t===3?'#e9cfa4':t===4?'#eef6fb':'#9fd48a';
     m.fillRect(x*3,y*3,3,3);
   }
   m.fillStyle='rgba(46,124,60,.5)';
@@ -658,6 +710,18 @@ function blocked(px,py){
   if(px>CASTLE.x&&px<CASTLE.x+CASTLE.w&&py>CASTLE.y&&py<CASTLE.y+CASTLE.h){
     if(Math.abs(px-(CASTLE.x+CASTLE.w/2))<26&&py>CASTLE.y+CASTLE.h-40)return false; // 성문 통로
     return true;
+  }
+  // 동쪽 울타리: 명성이 부족하면 문이 닫혀 있어요
+  if(py<23*TILE){
+    if(Math.abs(px-GATE1_X*TILE)<10){
+      if(!(curRank()>=2&&py>GATE_Y1*TILE&&py<GATE_Y2*TILE))return true;
+    }
+    if(Math.abs(px-GATE2_X*TILE)<10){
+      if(!(curRank()>=3&&py>GATE_Y1*TILE&&py<GATE_Y2*TILE))return true;
+    }
+    if(Math.abs(px-GATE3_X*TILE)<10){
+      if(!(curRank()>=4&&py>GATE_Y1*TILE&&py<GATE_Y2*TILE))return true;
+    }
   }
   for(const t of TREES){
     const cx=t[0]*TILE+TILE/2, cy=t[1]*TILE+TILE/2+14;
@@ -1296,6 +1360,11 @@ function drawWorld(){
       const w=Math.sin(T*1.6+tx*0.9+ty)*0.5+0.5;
       if(hash(tx,ty)>0.45){ctx.fillStyle='rgba(255,255,255,'+(0.15+w*0.2)+')';
         ctx.fillRect(px+6,py+14+Math.sin(T*2+tx)*3,26,3);}
+    }else if(t===4){
+      ctx.fillStyle=hash(tx,ty)>0.5?'#f2f8fc':'#eaf3fa';
+      ctx.fillRect(px,py,TILE,TILE);
+      if(hash(tx*5,ty*3)>0.8){ctx.fillStyle='#dcebf6';
+        ctx.beginPath();ctx.arc(px+10+hash(tx,ty)*28,py+12+hash(ty,tx)*24,3,0,7);ctx.fill();}
     }else{
       ctx.fillStyle='#ecd9a9';ctx.fillRect(px,py,TILE,TILE);
       ctx.fillStyle='#dfc78e';
@@ -1341,11 +1410,14 @@ function drawFenceLine(gx,openRank,label){
 function drawEastland(){
   drawFenceLine(GATE1_X,2,'명성 40이 되면 열려요');
   drawFenceLine(GATE2_X,3,'명성 100이 되면 열려요');
+  drawFenceLine(GATE3_X,4,'명성 200이 되면 열려요');
   ctx.font='13px Jua, sans-serif';ctx.textAlign='center';
   const s1x=(GATE1_X+2.4)*TILE-cam.x, s1y=10.2*TILE-cam.y;
   if(s1x>-80&&s1x<W+80){drawEmoji('🪧',(GATE1_X+2.4)*TILE,10.4*TILE,22,10);ctx.fillStyle='#6b5560';ctx.fillText('무무 목장',s1x,s1y+16);}
   const s2x=(GATE2_X+2.4)*TILE-cam.x, s2y=10.2*TILE-cam.y;
   if(s2x>-80&&s2x<W+80){drawEmoji('🪧',(GATE2_X+2.4)*TILE,10.4*TILE,22,10);ctx.fillStyle='#6b5560';ctx.fillText('야생 초원',s2x,s2y+16);}
+  const s3x=(GATE3_X+2.4)*TILE-cam.x, s3y=10.2*TILE-cam.y;
+  if(s3x>-80&&s3x<W+80){drawEmoji('🪧',(GATE3_X+2.4)*TILE,10.4*TILE,22,10);ctx.fillStyle='#6b5560';ctx.fillText('눈꽃 산',s3x,s3y+16);}
   // 헛간
   const bx=43.6*TILE-cam.x, by=7.2*TILE-cam.y, bw=3.4*TILE, bh=2.3*TILE;
   if(bx<W+100&&bx+bw>-100&&by<H+100&&by+bh>-100){
@@ -1784,6 +1856,7 @@ function addRenown(np){
     if(news.length)toast('🏰 '+news.map(id=>HUMANS[id].n).join(', ')+' 도착!');
     if(after===2)toast('🚪 동쪽 문이 열렸어요! 무무 목장에 가 봐요');
     if(after===3)toast('🌾 야생 초원이 열렸어요! 동물 친구들이 기다려요');
+    if(after===4)toast('⛄ 눈꽃 산이 열렸어요! 새하얀 친구들을 만나요');
   }
   saveGame();
 }
@@ -2207,8 +2280,9 @@ function update(dt){
       if(cap.on&&cap.wp===wp)return;
       wp.wt-=dt;
       if(wp.wt<=0){
-        wp.wx=clamp(wp.x+(Math.random()*6-3)*TILE,WILD_ZONE.x0*TILE,WILD_ZONE.x1*TILE);
-        wp.wy=clamp(wp.y+(Math.random()*6-3)*TILE,WILD_ZONE.y0*TILE,WILD_ZONE.y1*TILE);
+        const Z=wp.zn==='snow'?SNOW_WILD:WILD_ZONE;
+        wp.wx=clamp(wp.x+(Math.random()*6-3)*TILE,Z.x0*TILE,Z.x1*TILE);
+        wp.wy=clamp(wp.y+(Math.random()*6-3)*TILE,Z.y0*TILE,Z.y1*TILE);
         wp.wt=1.6+Math.random()*2.6;
       }
       const ddx=wp.wx-wp.x,ddy=wp.wy-wp.y,dl=Math.hypot(ddx,ddy);
@@ -2216,7 +2290,7 @@ function update(dt){
     });
     gateHintT-=dt;
     if(gateHintT<=0){
-      for(const g of [[GATE1_X,2,'명성 40'],[GATE2_X,3,'명성 100']]){
+      for(const g of [[GATE1_X,2,'명성 40'],[GATE2_X,3,'명성 100'],[GATE3_X,4,'명성 200']]){
         if(curRank()<g[1]&&Math.abs(player.x-g[0]*TILE)<52&&player.y>GATE_Y1*TILE&&player.y<GATE_Y2*TILE){
           toast('🔒 '+g[2]+'이 되면 이 문이 열려요!');gateHintT=5;break;
         }
