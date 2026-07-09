@@ -317,6 +317,7 @@ let mCur='main';
 function curTrackId(){
   if(!S)return 'main';
   if(world==='in')return 'castle';
+  if(world==='garden')return 'snow';
   const txp=player.x/TILE;
   if(txp>=GATE3_X)return 'snow';
   if(txp>=GATE2_X)return 'meadow';
@@ -488,6 +489,7 @@ const ACCS={
   bowtie:{n:'큰 리본',charm:3,buy:90,emoji:'🎀'},
   butterfly:{n:'나비 핀',charm:4,buy:120,emoji:'🦋'},
   gem:{n:'보석 관',charm:5,buy:180,emoji:'💎'},
+  starcrown:{n:'별빛 화관',charm:6,how:'무지개 별 조각 모으기',emoji:'🌟'},
 };
 const STATN={charm:{n:'매력',e:'💖',c:'#ff8fb8'},wis:{n:'지혜',e:'📖',c:'#8fb8ff'},
   kind:{n:'친절',e:'🌷',c:'#7ed6a5'},lead:{n:'리더십',e:'👑',c:'#ffc94d'}};
@@ -618,8 +620,8 @@ const BFLIES=[{x:8,y:14,p:0},{x:22,y:15,p:2},{x:30,y:13,p:4},{x:47,y:17,p:1},{x:
 
 /* ---- 동쪽 확장: 울타리 문 / 목장 / 야생 초원 ---- */
 const GATE1_X=OX+40, GATE2_X=OX+52, GATE3_X=OX+62, GATE_Y1=OY+10.7, GATE_Y2=OY+13.3;
-const RANCH_PENS=[{tx:40.8,ty:13.6},{tx:44.5,ty:13.6},{tx:48.2,ty:13.6},{tx:42.6,ty:17.4},{tx:46.3,ty:17.4}];
-const PEN_COST=[0,0,120,220,360]; // 3번째부터 코인으로 개방
+const RANCH_PENS=[{tx:42,ty:13.8},{tx:46.6,ty:13.8},{tx:42,ty:17.6},{tx:46.6,ty:17.6}];
+const PEN_COST=[0,0,120,220]; // 3번째·4번째 우리는 코인으로 개방 (최대 2×2)
 const PEN_W=3.4, PEN_H=3.2;
 const MUMU={e:'👨🏻‍🌾',n:'목장지기 무무',tx:45.3,ty:9.7};
 MUMU.px=MUMU.tx*TILE+24; MUMU.py=MUMU.ty*TILE+30;
@@ -682,6 +684,17 @@ function tradePrice(k){const m=nation().demand[k]||1; return Math.max(1,Math.rou
 function reqDone(nat){nat=nat||nation();return S.trade&&S.trade.done&&S.trade.done[nat.id]===tradeBucket();}
 const VOYAGE_MIN=40; // 명성 40부터 다른 왕국로 항해 가능
 const TRADER={e:'⛵',n:'무역선'};
+/* ==== 연계형 퀘스트: 무지개 별 조각 (북→서→남) ==== */
+const REGIONNPC={
+  flora:{e:'🧚',n:'꽃 요정 플로라',tx:OX+16,ty:6},
+  olly:{e:'🦉',n:'부엉이 올리',tx:6,ty:20},
+  wave:{e:'🧑‍✈️',n:'뱃사공 파도',tx:OX+28,ty:SEA_BOT+4},
+};
+for(const id in REGIONNPC){REGIONNPC[id].px=REGIONNPC[id].tx*TILE+24;REGIONNPC[id].py=REGIONNPC[id].ty*TILE+30;}
+const STAR_ORDER={flora:1,olly:2,wave:3};
+const STAR_TASK={flora:{need:{flower:3},hint:'🌸 꽃 3송이'},olly:{need:{mushroom:3},hint:'🍄 버섯 3개'},wave:{need:{fishAny:2},hint:'🐟 물고기 2마리'}};
+const STAR_NEXT={flora:'서쪽 속삭이는 숲의 🦉부엉이 올리',olly:'남쪽 햇살 항구의 🧑‍✈️뱃사공 파도',wave:null};
+const STAR_PREV={2:'북쪽 꽃 언덕의 🧚플로라',3:'서쪽 숲의 🦉올리'};
 /* ====== 반려동물 도감: 코드로 그리는 스프라이트 50종 ======
    각 종: n이름, rar등급, zn서식지, 그리고 그림 설계값
    body몸색 belly배색 ear귀 tail꼬리 pat무늬 acc장식 ef버튼용이모지 */
@@ -980,6 +993,7 @@ function freshState(){return{
   renown:0, friend:{}, hreq:{}, met:{}, queenGift:{},
   pets:[], activePet:null, dex:{}, animals:[], fishdex:{}, pens:2,
   trade:{done:{},seen:-1},
+  starStep:0, starOn:false, starDone:false,
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1101,6 +1115,7 @@ function tileType(px,py){
 }
 function blocked(px,py){
   if(world==='in')return blockedIn(px,py);
+  if(world==='garden')return blockedGarden(px,py);
   if(tileType(px,py)===1)return true; // 바다
   if(px>CASTLE.x&&px<CASTLE.x+CASTLE.w&&py>CASTLE.y&&py<CASTLE.y+CASTLE.h){
     if(Math.abs(px-(CASTLE.x+CASTLE.w/2))<26&&py>CASTLE.y+CASTLE.h-40)return false; // 성문 통로
@@ -1138,6 +1153,11 @@ function findNearest(){
     }
     nearest=best; return;
   }
+  if(world==='garden'){
+    const d=Math.hypot(player.x-STARNPC.px,player.y-STARNPC.py);
+    if(d<72)consider(d,{type:'starnpc'});
+    nearest=best; return;
+  }
   if(curRank()>=2){
     const dm=Math.hypot(player.x-MUMU.px,player.y-MUMU.py);
     if(dm<70)consider(dm,{type:'mumu'});
@@ -1157,6 +1177,10 @@ function findNearest(){
   for(const id in NPCS){
     const n=NPCS[id], d=Math.hypot(player.x-n.px,player.y-n.py);
     if(d<64)consider(d,{type:'npc',id});
+  }
+  for(const id in REGIONNPC){
+    const c=REGIONNPC[id], d=Math.hypot(player.x-c.px,player.y-c.py);
+    if(d<70)consider(d,{type:'rnpc',id});
   }
   FORAGE_DEF.forEach((f,i)=>{
     if(forageUntil[i]>now())return;
@@ -1180,6 +1204,8 @@ function updateActBtn(){
   if(nearest){
     on=true;
     if(nearest.type==='npc'){ic=NPCS[nearest.id].e;lb='말하기';}
+    else if(nearest.type==='rnpc'){ic=REGIONNPC[nearest.id].e;lb='말하기';}
+    else if(nearest.type==='starnpc'){ic='🌟';lb='말하기';}
     else if(nearest.type==='human'){ic=HUMANS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='mumu'){ic=MUMU.e;lb='말하기';}
     else if(nearest.type==='trade'){ic=curVisitor().e;lb='무역하기';}
@@ -1202,6 +1228,8 @@ actbtn.addEventListener('pointerdown',e=>{e.preventDefault();audio();doAction();
 function doAction(){
   if(uiOpen>0||!nearest){sTap();return;}
   if(nearest.type==='npc')openNpc(nearest.id);
+  else if(nearest.type==='rnpc')openRegionNpc(nearest.id);
+  else if(nearest.type==='starnpc')openStarSpirit();
   else if(nearest.type==='human')openHuman(nearest.id);
   else if(nearest.type==='mumu')openMumu();
   else if(nearest.type==='trade'){activeNation=null;atSea=false;tradeTab='sell';openTrade();}
@@ -1216,10 +1244,10 @@ function doAction(){
 function pickForage(i){
   const k=FORAGE_DEF[i].k;
   forageUntil[i]=now()+30000;
-  addInv(k,1); addXp(2); sPick();
+  const fb=petForageBonus(); addInv(k,1+fb); addXp(2); sPick();
   spark(FORAGE_DEF[i].tx*TILE+24,FORAGE_DEF[i].ty*TILE+16);
   const cb=petCoinBonus();
-  toast(META[k].i+' '+META[k].n+' +1'+(cb?'  🪙+'+cb:''));
+  toast(META[k].i+' '+META[k].n+' +'+(1+fb)+(fb?' 🍀':'')+(cb?'  🪙+'+cb:''));
   saveGame();
 }
 
@@ -1527,6 +1555,56 @@ function guideTarget(){
   return {x:n.px,y:n.py,label:n.e};
 }
 
+function openRegionNpc(id){
+  const c=REGIONNPC[id], step=S.starStep||0, my=STAR_ORDER[id], t=STAR_TASK[id];
+  if(S.starDone){ dialog(c.e,c.n,['무지개 별이 밤하늘에 반짝여요! ✨','언제든 놀러 와요, {P} 공주님~']); return; }
+  if(step < my-1){ dialog(c.e,c.n,['별 조각의 노래가 들리나요…?','먼저 '+STAR_PREV[my]+'을(를) 만나고 오세요!']); return; }
+  if(step >= my){ dialog(c.e,c.n,['별 조각을 나눠 줘서 고마워요!', STAR_NEXT[id]?('다음은 '+STAR_NEXT[id]+'에게 가 보세요 ✨'):'곧 무지개 별이 완성돼요!']); return; }
+  // 내 차례 (step == my-1)
+  if(!S.starOn){
+    S.starOn=true; saveGame();
+    dialog(c.e,c.n,['{P} 공주님! 저는 '+c.n+'예요.','무지개 별을 되살리려면 별 조각이 필요해요.','제게 '+t.hint+'을(를) 가져다주면 별 조각을 드릴게요!'],
+      [{label:'좋아요, 찾아볼게요! 💪',fn:()=>{toast('🌟 무지개 별 조각: '+t.hint);sYes();saveGame();}},{label:'다음에요',gray:true}]);
+    return;
+  }
+  if(needMet(t.need)){
+    dialog(c.e,c.n,['오, '+t.hint+'을(를) 다 모아 왔군요!'],[
+      {label:'건네주기 🎁',fn:()=>{
+        consumeNeed(t.need); S.starStep=my; S.starOn=false;
+        applyReward({coins:40,stats:{lead:2},xp:30}); addRenown(10); confetti(20); sPick();
+        if(my<3) dialog(c.e,c.n,['✨ 별 조각 '+my+'/3 획득!','다음은 '+STAR_NEXT[id]+'에게 가 보세요!'],[{label:'가볼게요!',fn:()=>saveGame()}]);
+        else finishStarQuest(c);
+      }},{label:'아직이에요',gray:true}]);
+  }else{
+    dialog(c.e,c.n,[t.hint+'을(를) 모아 오면 별 조각을 줄게요!','지금: '+needText(t.need)]);
+  }
+}
+function finishStarQuest(c){
+  S.starDone=true;
+  grantItem('acc_starcrown'); applyReward({coins:120,stats:{charm:3,lead:3},xp:80}); addRenown(25);
+  confetti(50); sLevel();
+  banner('🌈 무지개 별 완성!','별빛 화관을 얻었어요!');
+  dialog(c.e,c.n,['별 조각 3개가 모두 모였어요!','밤하늘에 무지개 별이 떠올랐어요! 🌈','이 별빛 화관은 공주님의 것이에요. 옷장에서 써 보세요!'],[{label:'고마워요! ✨',fn:()=>saveGame()}]);
+}
+function drawRegionNpcs(){
+  const step=S.starStep||0;
+  for(const id in REGIONNPC){
+    const c=REGIONNPC[id], my=STAR_ORDER[id];
+    const bob=Math.sin(T*2.3+c.px*0.05)*2.5;
+    drawEmoji(c.e,c.px,c.py+bob,34,14);
+    const x=c.px-cam.x,y=c.py-cam.y;
+    if(x<-40||x>W+40)continue;
+    let b=S.starDone?null:(step>=my?'✅':(step===my-1?(needMet(STAR_TASK[id].need)?'✅':(S.starOn?'💭':'🌟')):null));
+    if(b){
+      const by=y-40+Math.sin(T*3)*2.5;
+      ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.arc(x,by,13,0,7);ctx.fill();ctx.stroke();
+      ctx.font='15px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(b,x,by);ctx.textBaseline='alphabetic';
+    }
+    ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';
+    ctx.fillText(c.n,x,y+20);
+  }
+}
 function openNpc(id){
   const n=NPCS[id], q=QUESTS[id], st=qs(id);
   // 사슴 축제 소식 전달 체크
@@ -2191,12 +2269,23 @@ function drawPetFollow(){
   if(!petF.init){petF.x=player.x-22;petF.y=player.y+6;petF.init=true;}
   const tx2=player.x-(player.lastdx||1)*28, ty2=player.y+8-(player.lastdy||0)*20;
   petF.x+=(tx2-petF.x)*0.07; petF.y+=(ty2-petF.y)*0.07;
-  const spec=PETSPEC[pt.sp];
-  drawSpriteAt(pt.sp,petF.x,petF.y+Math.sin(T*4)*2,22+Math.min(8,pt.lv));
+  const spec=PETSPEC[pt.sp], px=petF.x-cam.x, py=petF.y-cam.y;
+  // 레벨이 오르면 은은한 오라
+  if(pt.lv>=3){
+    const rc=RARN[spec.rar].c;
+    ctx.strokeStyle=rc;ctx.globalAlpha=.25+Math.sin(T*4)*.15;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(px,py-2,15+Math.sin(T*3)*2,0,7);ctx.stroke();ctx.globalAlpha=1;
+  }
+  drawSpriteAt(pt.sp,petF.x,petF.y+Math.sin(T*4)*2,22+Math.min(10,pt.lv));
+  if(pt.lv>=7){ // 작은 왕관
+    ctx.font='13px serif';ctx.textAlign='center';ctx.fillText('👑',px,py-20+Math.sin(T*3)*1.5);
+  }
   if(pt.lv>=5){
-    const x=petF.x-cam.x,y=petF.y-cam.y;
-    ctx.font='10px serif';ctx.globalAlpha=.7+Math.sin(T*5)*.3;
-    ctx.fillText('✨',x+12,y-18);ctx.globalAlpha=1;
+    ctx.font='10px serif';ctx.globalAlpha=.7+Math.sin(T*5)*.3;ctx.textAlign='center';
+    ctx.fillText('✨',px+13,py-16);ctx.globalAlpha=1;
+  }
+  if(pt.lv>=10&&Math.sin(T*2)>0.9){
+    ctx.font='10px serif';ctx.globalAlpha=.8;ctx.fillText('💗',px-12,py-14);ctx.globalAlpha=1;
   }
 }
 
@@ -2536,8 +2625,13 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
 }
 
 /* ============ 성 내부 & 왕국 명성 ============ */
-let world='out'; // 'out' 숲 / 'in' 성안
+let world='out'; // 'out' 숲 / 'in' 성안 / 'garden' 별빛 정원
 const IW=20, IH=14;
+const GW=18, GH=13; // 별빛 정원 크기
+function worldW(){return (world==='in'?IW:world==='garden'?GW:MAP_W)*TILE;}
+function worldH(){return (world==='in'?IH:world==='garden'?GH:MAP_H)*TILE;}
+const PORTAL={tx:OX+20,ty:2}; PORTAL.px=PORTAL.tx*TILE+24; PORTAL.py=PORTAL.ty*TILE+24;
+const STARNPC={e:'🌟',n:'별의 정령',px:GW/2*TILE,py:5*TILE+24};
 const RANKS=[
   {min:0,  n:'조용한 성',    e:'🏠'},
   {min:40, n:'소문난 성',    e:'🏡'},
@@ -2749,21 +2843,24 @@ function animalAct(i,ax,ay){
 /* ---- 야생 펫 포획 & 키우기 ---- */
 let cap={on:false};
 function activePetLv(){if(!S||S.activePet==null)return 0;const p=S.pets[S.activePet];return p?p.lv:0;}
-function petSpeedMul(){return activePetLv()>=5?1.10:1;}
-function petFishBonus(){return activePetLv()>=3?0.035:0;}
+function petSpeedMul(){return activePetLv()>=5?1.12:1;}
+function petFishBonus(){return activePetLv()>=3?0.04:0;}
 function petRenownMul(){return activePetLv()>=7?1.3:1;}
+function petForageBonus(){return (activePetLv()>=4&&Math.random()<0.35)?1:0;}
+function petTitle(lv){return lv>=10?'👑 왕실의 벗':lv>=7?'🌟 명예로운 벗':lv>=5?'💫 든든한 벗':lv>=4?'🍀 다정한 벗':lv>=2?'🌸 친한 벗':'🌱 새 친구';}
 function petCoinBonus(){ // 채집·수확 때 가끔 코인
   if(activePetLv()>=2&&Math.random()<0.5){const b=1+Math.floor(activePetLv()/3);S.coins+=b;updateHUD();return b;}
   return 0;
 }
 function petPerkList(lv){
-  const a=[];
-  a.push([2,'🪙 채집·수확 때 가끔 코인 보너스']);
-  a.push([3,'🎣 낚시 초록 칸이 넓어져요']);
-  a.push([5,'👟 공주 이동 속도 +10%']);
-  a.push([7,'👑 명성 획득 +30%']);
-  a.push([10,'✨ 반짝이는 최고의 친구!']);
-  return a;
+  return [
+    [2,'🪙 채집·수확 때 가끔 코인 보너스'],
+    [3,'🎣 낚시 초록 칸이 넓어져요'],
+    [4,'🍀 채집할 때 가끔 하나 더 얻어요'],
+    [5,'👟 공주 이동 속도 +12%'],
+    [7,'👑 명성 획득 +30%'],
+    [10,'✨ 왕실의 벗 — 왕관과 반짝임을 얻어요'],
+  ];
 }
 function petXpGain(nx){
   if(S.activePet==null)return;
@@ -2836,7 +2933,7 @@ function openPets(){
   }
   if(S.activePet!=null&&S.pets[S.activePet]){
     const lv=S.pets[S.activePet].lv;
-    html+='<div class="card" style="background:#fff6fb"><div style="font-size:14px;margin-bottom:4px">🎁 동행 친구 혜택 (Lv.'+lv+')</div>';
+    html+='<div class="card" style="background:#fff6fb"><div style="font-size:14px;margin-bottom:4px">🎁 동행 친구 혜택 — <b>'+petTitle(lv)+'</b> (Lv.'+lv+')</div>';
     petPerkList(lv).forEach(pk=>{
       const on=lv>=pk[0];
       html+='<div class="small" style="color:'+(on?'#2e9e6b':'#c3b3bd')+';margin:2px 0">'
@@ -2950,6 +3047,79 @@ function drawInterior(){
   }
 }
 
+/* ============ 별빛 정원 (걸어다니는 새 지역) ============ */
+function enterGarden(){ world='garden'; player.x=GW/2*TILE; player.y=(GH-2)*TILE; sYes(); toast('🌈 별빛 정원에 들어왔어요!'); }
+function exitGarden(){ world='out'; player.x=PORTAL.px; player.y=PORTAL.py+42; sTap(); toast('🌸 왕국으로 돌아왔어요'); }
+function blockedGarden(px,py){
+  if(px<TILE*0.9||px>GW*TILE-TILE*0.9)return true;
+  if(py<TILE*1.6||py>(GH-0.5)*TILE)return true;
+  return false;
+}
+function openStarSpirit(){
+  if(!S.met.starspirit){ S.met.starspirit=true; saveGame();
+    dialog('🌟','별의 정령',['{P} 공주님, 별빛 정원에 온 걸 환영해요!','당신이 별 조각을 모아 준 덕분에 이 정원이 다시 빛나요.','언제든 이곳에서 쉬어 가세요 ✨'],
+      [{label:'고마워요! 💖',fn:()=>{applyReward({coins:60,stats:{charm:2,lead:2},xp:25});confetti(22);}}]);
+    return; }
+  if(now()-(S.wishAt||0)<90000){ dialog('🌟','별의 정령',['별이 아직 반짝임을 모으고 있어요…','잠시 후 다시 소원을 빌어 볼까요? ⏳']); return; }
+  dialog('🌟','별의 정령',['반짝반짝… 별에게 소원을 빌어 볼까요?'],[
+    {label:'소원 빌기 ✨',fn:()=>{ S.wishAt=now();
+      const gifts=[['flower',2,'🌸'],['cherry',2,'🍒'],['mushroom',2,'🍄'],['strawberry',1,'🍓']];
+      const gg=gifts[Math.floor(Math.random()*gifts.length)];
+      addInv(gg[0],gg[1]); sYes(); confetti(12); spark(player.x,player.y-30,gg[2]);
+      toast(gg[2]+' 별의 선물 +'+gg[1]); petXpGain(3); saveGame(); }},
+    {label:'그냥 구경할게요',gray:true}]);
+}
+function drawGarden(){
+  const ox=-cam.x, oy=-cam.y;
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#241f4a');sky.addColorStop(0.6,'#463a78');sky.addColorStop(1,'#5f5192');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<50;i++){const sx=(i*127%(W+40))-20,sy=((i*71)%Math.max(1,Math.floor(H*0.7)));
+    ctx.globalAlpha=.35+Math.sin(T*2+i)*.3;ctx.fillStyle=i%7===0?'#ffe9a0':'#fff';ctx.fillRect(sx,sy,i%9===0?2:1.5,i%9===0?2:1.5);}
+  ctx.globalAlpha=1;
+  const gx=ox,gy=oy,gw=GW*TILE,gh=GH*TILE;
+  ctx.fillStyle='#3f7a55';
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(gx+TILE*0.6,gy+TILE*1.3,gw-TILE*1.2,gh-TILE*1.8,42);ctx.fill();}else ctx.fillRect(gx,gy,gw,gh);
+  ctx.fillStyle='#4a8a62';
+  for(let i=0;i<40;i++){const rx=gx+TILE+((i*83)%(gw-TILE*2)),ry=gy+TILE*1.7+((i*47)%Math.max(1,(gh-TILE*3)));ctx.fillRect(rx,ry,3,6);}
+  ctx.fillStyle='#e6d6b0';ctx.fillRect(gx+GW/2*TILE-14,gy+TILE*1.5,28,gh-TILE*2.2);
+  const acx=gx+GW/2*TILE, acy=gy+TILE*3.6, rc=['#ff8fb1','#ffc94d','#8fd6a5','#8fd3ff','#c9a6ff'];
+  for(let i=0;i<5;i++){ctx.strokeStyle=rc[i];ctx.lineWidth=6;ctx.globalAlpha=.85;ctx.beginPath();ctx.arc(acx,acy+40,82-i*6,Math.PI*1.03,Math.PI*1.97);ctx.stroke();}
+  ctx.globalAlpha=1;
+  const fx=acx, fy=gy+TILE*6.6;
+  ctx.fillStyle='#7fc4e8';ctx.beginPath();ctx.ellipse(fx,fy,46,26,0,0,7);ctx.fill();
+  ctx.strokeStyle='#e6d6b0';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(fx,fy,46,26,0,0,7);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.ellipse(fx-12,fy-6,15,7,0,0,7);ctx.fill();
+  ctx.save();ctx.translate(fx,fy-72+Math.sin(T*1.5)*4);
+  ctx.shadowColor='#ffe9a0';ctx.shadowBlur=20;ctx.fillStyle='#ffe36b';star(ctx,0,0,21,9,5);ctx.shadowBlur=0;
+  ctx.fillStyle='#fff';star(ctx,0,0,9,4,5);ctx.restore();
+  ctx.font='18px serif';ctx.textAlign='center';const fl=['🌷','🌸','🌼','🌺','💐'];
+  for(let i=0;i<10;i++){const a=i/10*6.283,rx=fx+Math.cos(a)*(gw*0.33),ry=fy+Math.sin(a)*(gh*0.26);ctx.fillText(fl[i%5],rx,ry);}
+  for(let i=0;i<12;i++){const bx=gx+gw*0.15+Math.sin(T*1.2+i*1.7)*gw*0.35+gw*0.35*(i%3)/3, by=gy+TILE*2.2+((i*61)%Math.max(1,(gh-TILE*3.5)))+Math.sin(T*2+i)*6;
+    ctx.globalAlpha=.5+Math.sin(T*4+i)*.4;ctx.fillStyle='#eaff9a';ctx.beginPath();ctx.arc(bx,by,2.4,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  const sBob=Math.sin(T*2)*3;
+  drawEmoji(STARNPC.e,STARNPC.px,STARNPC.py+sBob,34,14);
+  {const x=STARNPC.px-cam.x,y=STARNPC.py-cam.y;
+   ctx.font='12px Jua, sans-serif';ctx.fillStyle='#ffe9a0';ctx.textAlign='center';ctx.fillText(STARNPC.n,x,y+22);
+   if(!S.met.starspirit){const by=y-40+Math.sin(T*3)*2.5;ctx.fillStyle='rgba(255,255,255,.95)';ctx.beginPath();ctx.arc(x,by,12,0,7);ctx.fill();ctx.font='13px serif';ctx.fillStyle='#000';ctx.fillText('❗',x,by+4.5);}}
+  const exX=gx+GW/2*TILE, exY=gy+(GH-0.7)*TILE;
+  ctx.fillStyle='rgba(255,255,255,.22)';ctx.beginPath();ctx.ellipse(exX,exY,28,10,0,0,7);ctx.fill();
+  ctx.font='12px Jua, sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText('⬇ 왕국으로',exX,exY+2);
+}
+function drawPortal(){
+  if(!S.starDone)return;
+  const x=PORTAL.px-cam.x,y=PORTAL.py-cam.y;
+  if(x<-60||x>W+60||y<-80||y>H+60)return;
+  const rc=['#ff8fb1','#ffc94d','#8fd6a5','#8fd3ff','#c9a6ff'];
+  for(let i=0;i<5;i++){ctx.strokeStyle=rc[i];ctx.lineWidth=5;ctx.globalAlpha=.8;ctx.beginPath();ctx.arc(x,y+20,30-i*4,Math.PI,0);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.save();ctx.shadowColor='#ffe9a0';ctx.shadowBlur=14;ctx.font='26px serif';ctx.textAlign='center';
+  ctx.fillText('🌟',x,y+8+Math.sin(T*2)*2);ctx.restore();
+  ctx.fillStyle='rgba(90,74,82,.8)';const lbl='별빛 정원',lw=ctx.measureText(lbl).width+14;
+  ctx.font='12px Jua, sans-serif';if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x-lw/2,y+24,lw,17,8);ctx.fill();}else ctx.fillRect(x-lw/2,y+24,lw,17);
+  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(lbl,x,y+36);
+}
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
   if(uiOpen>0)return;
@@ -3003,6 +3173,13 @@ function drawMini(){
     mm.beginPath();mm.arc(player.x/8,player.y/8+3,2.6,0,7);mm.fill();mm.stroke();
     return;
   }
+  if(world==='garden'){
+    mm.fillStyle='#463a78';mm.fillRect(4,6,112,80);
+    const sc=Math.min(112/(GW*TILE),80/(GH*TILE)), gxm=v=>4+v*sc, gym=v=>6+v*sc;
+    mm.fillStyle='#ffe36b';mm.beginPath();mm.arc(gxm(STARNPC.px),gym(STARNPC.py),2.6,0,7);mm.fill();
+    mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(gxm(player.x),gym(player.y),2.6,0,7);mm.fill();mm.stroke();
+    return;
+  }
   // 넓어진 왕국: 공주를 따라 상하좌우로 움직이는 창
   const winX=clamp(player.x/16-60,0,Math.max(0,MAP_W*3-120));
   const winY=clamp(player.y/16-45,0,Math.max(0,MAP_H*3-90));
@@ -3045,7 +3222,7 @@ function update(dt){
     const stepx=mvx/Math.max(len,0.001)*sp, stepy=mvy/Math.max(len,0.001)*sp;
     if(!blocked(player.x+stepx+Math.sign(stepx)*10,player.y))player.x+=stepx;
     if(!blocked(player.x,player.y+stepy+Math.sign(stepy)*8))player.y+=stepy;
-    const mw=(world==='in'?IW:MAP_W)*TILE, mh=(world==='in'?IH:MAP_H)*TILE;
+    const mw=worldW(), mh=worldH();
     player.x=clamp(player.x,16,mw-16);
     player.y=clamp(player.y,40,mh-16);
     player.lastdx=mvx/Math.max(len,0.001);player.lastdy=mvy/Math.max(len,0.001);
@@ -3055,8 +3232,11 @@ function update(dt){
   if(world==='out'){
     const doorX=CASTLE.x+CASTLE.w/2, doorB=CASTLE.y+CASTLE.h;
     if(Math.abs(player.x-doorX)<24 && player.y>doorB-30 && player.y<doorB+20)enterCastle();
-  }else{
+    if(S.starDone && Math.hypot(player.x-PORTAL.px,player.y-PORTAL.py)<40)enterGarden();
+  }else if(world==='in'){
     if(player.y>(IH-1.35)*TILE&&Math.abs(player.x-10*TILE)<44)exitCastle();
+  }else if(world==='garden'){
+    if(player.y>(GH-1.1)*TILE&&Math.abs(player.x-GW/2*TILE)<54)exitGarden();
   }
   // 가축 생산 완료 체크
   S.animals.forEach(a=>{
@@ -3102,7 +3282,7 @@ function update(dt){
     }
   }
   // 카메라
-  const mw2=(world==='in'?IW:MAP_W)*TILE, mh2=(world==='in'?IH:MAP_H)*TILE;
+  const mw2=worldW(), mh2=worldH();
   cam.x=clamp(player.x-W/2,0,Math.max(0,mw2-W));
   cam.y=clamp(player.y-H/2,0,Math.max(0,mh2-H));
   if(mw2<W)cam.x=(mw2-W)/2;
@@ -3165,6 +3345,14 @@ function render(){
     drawMini();
     return;
   }
+  if(world==='garden'){
+    drawGarden();
+    drawPetFollow();
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=p2.s+'px serif';ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
+    drawMini();
+    return;
+  }
   drawWorld();
   drawCastle();
   drawEastland();
@@ -3178,6 +3366,8 @@ function render(){
   objs.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
   drawForage();
   drawNpcs();
+  drawRegionNpcs();
+  drawPortal();
   // 나비
   BFLIES.forEach(b=>{
     const wx=(b.x+Math.sin(T*0.6+b.p)*2.5)*TILE, wy=(b.y+Math.sin(T*0.9+b.p*2)*1.6)*TILE;
