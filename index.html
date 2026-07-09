@@ -900,8 +900,8 @@ const DECOR=[];
     {tx:OX+12,ty:HY+2,k:'flower'},{tx:OX+22,ty:HY+4,k:'cherry'},{tx:OX+32,ty:HY+2,k:'flower'},
     {tx:OX+48,ty:HY+3,k:'cherry'},{tx:OX+58,ty:HY+4,k:'flower'});
   // 정박한 무역선 (앞으로의 무역 시스템 예고!) + 갈매기
-  TRADER.px=(OX+20)*TILE+24; TRADER.py=(SEA_BOT+0.6)*TILE+24;
-  DECOR.push({x:OX+20,y:SEA_BOT-0.3,e:'⛵',s:46},{x:OX+38,y:SEA_BOT-0.6,e:'🚢',s:44},
+  TRADER.px=(OX+20)*TILE+24; TRADER.py=(SEA_BOT-0.1)*TILE+24;
+  DECOR.push({x:OX+21.7,y:SEA_BOT-0.6,e:'⛵',s:46},{x:OX+38,y:SEA_BOT-0.6,e:'🚢',s:44},
     {x:OX+15,y:SEA_BOT-1,e:'🕊️',s:18},{x:OX+44,y:SEA_BOT-1.2,e:'🕊️',s:18},
     {x:OX+30,y:HY+6,e:'🏖️',s:28},{x:OX+52,y:HY+5,e:'⚓',s:24});
 })();
@@ -1031,28 +1031,28 @@ const jz=$('joyzone'),jb=$('joybase'),jt=$('joythumb');
 let uiOpen=0; // 모달/대화 열림 수 (이동 잠금)
 
 jz.addEventListener('pointerdown',e=>{
-  if(uiOpen>0)return;
+  if(uiOpen>0||joy.active)return;
   joy.active=true;joy.id=e.pointerId;joy.bx=e.clientX;joy.by=e.clientY;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='block';
   jb.style.left=(joy.bx-55)+'px';jb.style.top=(joy.by-55)+'px';
   jt.style.left=(joy.bx-27)+'px';jt.style.top=(joy.by-27)+'px';
-  jz.setPointerCapture(e.pointerId); audio();
+  audio();
 });
-jz.addEventListener('pointermove',e=>{
+window.addEventListener('pointermove',e=>{
   if(!joy.active||e.pointerId!==joy.id)return;
   let dx=e.clientX-joy.bx, dy=e.clientY-joy.by;
   const len=Math.hypot(dx,dy)||1, max=46;
   if(len>max){dx=dx/len*max;dy=dy/len*max;}
   joy.dx=dx/max;joy.dy=dy/max;
   jt.style.left=(joy.bx+dx-27)+'px';jt.style.top=(joy.by+dy-27)+'px';
-});
+},{passive:true});
 function joyEnd(e){
   if(e&&e.pointerId!==joy.id)return;
   joy.active=false;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='none';
 }
-jz.addEventListener('pointerup',joyEnd);
-jz.addEventListener('pointercancel',joyEnd);
+window.addEventListener('pointerup',joyEnd);
+window.addEventListener('pointercancel',joyEnd);
 
 /* ---- 이동 가능 판정 ---- */
 function tileType(px,py){
@@ -1558,6 +1558,7 @@ function openModal(title,html){
 }
 function closeModal(){
   if(mwrap.style.display==='flex'){mwrap.style.display='none';uiOpen--;mbody.innerHTML='';saveGame();}
+  if(atSea){atSea=false;activeNation=null;toast('🏠 우리 왕국으로 돌아왔어요');}
 }
 $('mclose').addEventListener('pointerdown',closeModal);
 mwrap.addEventListener('pointerdown',e=>{if(e.target===mwrap)closeModal();});
@@ -2095,7 +2096,7 @@ function drawEastland(){
   }
   // 무역선 깃발 (어느 왕국이 왔는지)
   {
-    const K=curVisitor(), sx=(OX+20)*TILE+24-cam.x, sy=(SEA_BOT-0.3)*TILE+24-cam.y;
+    const K=curVisitor(), sx=(OX+21.7)*TILE+24-cam.x, sy=(SEA_BOT-0.6)*TILE+24-cam.y;
     if(sx>-80&&sx<W+80&&sy>-80&&sy<H+80){
       const py2=sy-30+Math.sin(T*2)*2;
       ctx.strokeStyle='#8a6a4a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sx,sy-8);ctx.lineTo(sx,py2-8);ctx.stroke();
@@ -2923,6 +2924,7 @@ function drawMini(){
 let last=now(), tutoStep=0;
 function update(dt){
   T+=dt;
+  if(atSea)return; // 다른 왕국 항구에선 화면 고정 (무역창으로 상호작용)
   // 이동
   const canMove=uiOpen===0;
   let mvx=canMove?joy.dx:0, mvy=canMove?joy.dy:0;
@@ -2940,9 +2942,10 @@ function update(dt){
     player.lastdx=mvx/Math.max(len,0.001);player.lastdy=mvy/Math.max(len,0.001);
     player.walkT+=dt;
   }
-  // 성문 드나들기
+  // 성문 드나들기 (정문=성 아래 중앙에서만, 위/옆으로 돌아가도 안 들어가요)
   if(world==='out'){
-    if(Math.abs(player.x-(CASTLE.x+CASTLE.w/2))<24&&player.y<CASTLE.y+CASTLE.h-14)enterCastle();
+    const doorX=CASTLE.x+CASTLE.w/2, doorB=CASTLE.y+CASTLE.h;
+    if(Math.abs(player.x-doorX)<24 && player.y>doorB-30 && player.y<doorB+20)enterCastle();
   }else{
     if(player.y>(IH-1.35)*TILE&&Math.abs(player.x-10*TILE)<44)exitCastle();
   }
@@ -3005,8 +3008,40 @@ function update(dt){
   if(S.tutorial&&tutoStep===1&&T>3){tutoStep=2;toast('🐰 오른쪽 밭 근처에서 토토가 기다려요!');}
 }
 
+/* ===== 다른 왕국 항구 장면 (항해 도착 시 배경) ===== */
+function drawPort(nat){
+  if(!nat)nat=nation();
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,shade(nat.c,55)); sky.addColorStop(0.55,shade(nat.c,95)); sky.addColorStop(1,'#cfeeff');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.arc(W*0.8,H*0.2,44,0,7);ctx.fill();
+  ctx.globalAlpha=.5;ctx.font='26px serif';ctx.textAlign='center';
+  for(let i=0;i<5;i++){const fx=(i*0.22+0.06)*W, fy=H*0.16+Math.sin(T*1.2+i)*8;ctx.fillText(nat.e,fx,fy);}
+  ctx.globalAlpha=1;
+  const hz=H*0.52;
+  ctx.fillStyle=shade(nat.c,-10);
+  for(let i=0;i<7;i++){const bx=W*(0.1+i*0.12), bw=W*0.08, bh=H*(0.10+((i*37)%5)*0.03);
+    ctx.fillRect(bx-bw/2,hz-bh,bw,bh);
+    ctx.beginPath();ctx.moveTo(bx-bw/2-4,hz-bh);ctx.lineTo(bx+bw/2+4,hz-bh);ctx.lineTo(bx,hz-bh-22);ctx.closePath();ctx.fill();}
+  ctx.font='64px serif';ctx.textAlign='center';ctx.fillText(nat.e,W/2,hz-H*0.16);
+  const sea=ctx.createLinearGradient(0,hz,0,H);
+  sea.addColorStop(0,'#6cc4f0');sea.addColorStop(1,'#3a9bd8');
+  ctx.fillStyle=sea;ctx.fillRect(0,hz,W,H-hz);
+  ctx.fillStyle='rgba(255,255,255,.25)';
+  for(let i=0;i<6;i++){const wy=hz+18+i*((H-hz)/6);ctx.fillRect(0,wy+Math.sin(T*2+i)*2,W,2);}
+  ctx.fillStyle='#b98d5f';ctx.fillRect(W/2-70,H-70,140,70);
+  ctx.fillStyle='#a0764e';for(let x=W/2-70;x<W/2+70;x+=22)ctx.fillRect(x,H-70,4,70);
+  ctx.font='42px serif';ctx.fillText('⛵',W/2+96,H-40);
+  drawPrincess(ctx,W/2,H-30,1.0,0,false,S.outfit);
+  ctx.fillStyle='rgba(255,255,255,.9)';
+  const label=nat.e+' '+nat.n+' 항구';
+  ctx.font='18px Jua, sans-serif';const lw=ctx.measureText(label).width+30;
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(W/2-lw/2,20,lw,34,17);ctx.fill();}else ctx.fillRect(W/2-lw/2,20,lw,34);
+  ctx.fillStyle=nat.c;ctx.textAlign='center';ctx.fillText(label,W/2,43);
+}
 function render(){
   ctx.clearRect(0,0,W,H);
+  if(atSea){ drawPort(activeNation); return; }
   if(world==='in'){
     drawInterior();
     drawPetFollow();
