@@ -181,6 +181,7 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <button class="mbtn" id="btnCloset">👗</button>
   <button class="mbtn" id="btnStats">⭐</button>
   <button class="mbtn" id="btnPets">🐾</button>
+  <button class="mbtn" id="btnRoom">🛏️</button>
   <button class="mbtn" id="btnSave">💾</button>
 </div>
 <canvas id="mmap" width="120" height="90"></canvas>
@@ -316,7 +317,7 @@ const TRACKS={
 let mCur='main';
 function curTrackId(){
   if(!S)return 'main';
-  if(world==='in')return 'castle';
+  if(world==='in'||world==='room')return 'castle';
   if(world==='garden')return 'snow';
   const txp=player.x/TILE;
   if(txp>=GATE3_X)return 'snow';
@@ -391,6 +392,12 @@ const META={
   octo:{n:'문어',i:'🐙',sell:21}, dolphin:{n:'돌고래',i:'🐬',sell:42},
   rainbow:{n:'무지개어',i:'🌈',sell:72}, whale:{n:'흰고래',i:'🐋',sell:46},
   starfish:{n:'별빛물고기',i:'🌟',sell:85},
+  carrotSoup:{n:'당근 수프',i:'🥣',sell:22},
+  berryCake:{n:'딸기 케이크',i:'🍰',sell:40},
+  mushGratin:{n:'버섯 그라탕',i:'🧀',sell:45},
+  fishStew:{n:'생선 스튜',i:'🍲',sell:35},
+  fruitTart:{n:'과일 타르트',i:'🥧',sell:38},
+  royalFeast:{n:'왕실 만찬',i:'🍱',sell:80},
 };
 /* 지역별 물고기: rar 0일반 1레어 2유니크 3전설 */
 const FISH={
@@ -695,6 +702,40 @@ const STAR_ORDER={flora:1,olly:2,wave:3};
 const STAR_TASK={flora:{need:{flower:3},hint:'🌸 꽃 3송이'},olly:{need:{mushroom:3},hint:'🍄 버섯 3개'},wave:{need:{fishAny:2},hint:'🐟 물고기 2마리'}};
 const STAR_NEXT={flora:'서쪽 속삭이는 숲의 🦉부엉이 올리',olly:'남쪽 햇살 항구의 🧑‍✈️뱃사공 파도',wave:null};
 const STAR_PREV={2:'북쪽 꽃 언덕의 🧚플로라',3:'서쪽 숲의 🦉올리'};
+/* ==== 요리·조합 ==== */
+const BUFFS={
+  speed:{n:'날쌘 발걸음',e:'👟',desc:'이동 속도 ↑'},
+  luck:{n:'행운의 손맛',e:'🎣',desc:'낚시 성공 칸 ↑'},
+  renown:{n:'빛나는 매력',e:'👑',desc:'명성 획득 ↑'},
+  charm:{n:'반짝 매력',e:'💖',desc:'매력 +3'},
+  yield:{n:'풍성한 수확',e:'🍀',desc:'채집·수확 하나 더'},
+};
+const RECIPES={
+  carrotSoup:{buff:'speed', dur:90,  need:{carrot:2}},
+  fishStew:  {buff:'luck',  dur:90,  need:{fishAny:2}},
+  berryCake: {buff:'charm', dur:90,  need:{strawberry:2,egg:1}},
+  mushGratin:{buff:'renown',dur:90,  need:{mushroom:2,milk:1}},
+  fruitTart: {buff:'yield', dur:90,  need:{cherry:2,strawberry:1}},
+  royalFeast:{buff:'renown',dur:180, need:{pumpkin:1,fishAny:1,milk:1}},
+};
+const FURN={
+  bed:{n:'침대',e:'🛏️',cost:0}, rug:{n:'러그',e:'🟪',cost:0},
+  plant:{n:'화분',e:'🪴',cost:25}, painting:{n:'액자',e:'🖼️',cost:35},
+  teatable:{n:'티테이블',e:'🫖',cost:40}, teddy:{n:'곰인형',e:'🧸',cost:30},
+  lamp:{n:'램프',e:'🪔',cost:28}, books:{n:'책장',e:'📚',cost:45},
+  mirror:{n:'거울',e:'🪞',cost:35}, cake:{n:'케이크',e:'🎂',cost:30},
+  balloon:{n:'풍선',e:'🎈',cost:20}, vase:{n:'꽃병',e:'💐',cost:25},
+  clock:{n:'시계',e:'🕰️',cost:40}, cushion:{n:'고양이 쿠션',e:'🐈',cost:35},
+  star:{n:'별 조명',e:'⭐',cost:50}, gift:{n:'선물상자',e:'🎁',cost:22},
+};
+const COOKPOT={e:'🍳',n:'요리솥',tx:OX+23,ty:OY+9.5};
+COOKPOT.px=COOKPOT.tx*TILE+24; COOKPOT.py=COOKPOT.ty*TILE+30;
+function activeBuff(){ if(S&&S.buff){ if(now()<S.buff.until)return S.buff.type; S.buff=null; } return null; }
+function buffSpeedMul(){return activeBuff()==='speed'?1.18:1;}
+function buffRenownMul(){return activeBuff()==='renown'?1.5:1;}
+function buffFishBonus(){return activeBuff()==='luck'?0.05:0;}
+function buffCharm(){return activeBuff()==='charm'?3:0;}
+function buffYield(){return activeBuff()==='yield'?1:0;}
 /* ====== 반려동물 도감: 코드로 그리는 스프라이트 50종 ======
    각 종: n이름, rar등급, zn서식지, 그리고 그림 설계값
    body몸색 belly배색 ear귀 tail꼬리 pat무늬 acc장식 ef버튼용이모지 */
@@ -994,6 +1035,8 @@ function freshState(){return{
   pets:[], activePet:null, dex:{}, animals:[], fishdex:{}, pens:2,
   trade:{done:{},seen:-1},
   starStep:0, starOn:false, starDone:false,
+  buff:null, cookdex:{},
+  room:{}, roomOwned:['bed','rug'],
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1060,6 +1103,8 @@ function applyLoaded(d){
   if(!S.outfit.shoes)S.outfit.shoes='pink';
   if(!S.owned.hairstyles)S.owned.hairstyles=['long'];
   if(!S.owned.shoes)S.owned.shoes=['pink'];
+  S.buff=null; if(!S.cookdex)S.cookdex={};
+  if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
   if(typeof S.trade.done!=='object'||S.trade.done===null)S.trade.done={};
   muted=!!S.muted; musicOn=S.music!==false;
 }
@@ -1116,6 +1161,7 @@ function tileType(px,py){
 function blocked(px,py){
   if(world==='in')return blockedIn(px,py);
   if(world==='garden')return blockedGarden(px,py);
+  if(world==='room')return blockedRoom(px,py);
   if(tileType(px,py)===1)return true; // 바다
   if(px>CASTLE.x&&px<CASTLE.x+CASTLE.w&&py>CASTLE.y&&py<CASTLE.y+CASTLE.h){
     if(Math.abs(px-(CASTLE.x+CASTLE.w/2))<26&&py>CASTLE.y+CASTLE.h-40)return false; // 성문 통로
@@ -1158,12 +1204,19 @@ function findNearest(){
     if(d<72)consider(d,{type:'starnpc'});
     nearest=best; return;
   }
+  if(world==='room'){
+    const d=Math.hypot(player.x-ROOMEDIT.px,player.y-ROOMEDIT.py);
+    if(d<74)consider(d,{type:'roomedit'});
+    nearest=best; return;
+  }
   if(curRank()>=2){
     const dm=Math.hypot(player.x-MUMU.px,player.y-MUMU.py);
     if(dm<70)consider(dm,{type:'mumu'});
   }
   {const dt2=Math.hypot(player.x-TRADER.px,player.y-TRADER.py);
    if(dt2<84)consider(dt2,{type:'trade'});}
+  {const dc=Math.hypot(player.x-COOKPOT.px,player.y-COOKPOT.py);
+   if(dc<72)consider(dc,{type:'cook'});}
   S.animals.forEach((a,i)=>{
     const pen=RANCH_PENS[a.pen];
     const ax=(pen.tx+1+a.slot*1.8)*TILE, ay=(pen.ty+1.9)*TILE;
@@ -1206,9 +1259,11 @@ function updateActBtn(){
     if(nearest.type==='npc'){ic=NPCS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='rnpc'){ic=REGIONNPC[nearest.id].e;lb='말하기';}
     else if(nearest.type==='starnpc'){ic='🌟';lb='말하기';}
+    else if(nearest.type==='roomedit'){ic='🎨';lb='꾸미기';}
     else if(nearest.type==='human'){ic=HUMANS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='mumu'){ic=MUMU.e;lb='말하기';}
     else if(nearest.type==='trade'){ic=curVisitor().e;lb='무역하기';}
+    else if(nearest.type==='cook'){ic='🍳';lb='요리하기';}
     else if(nearest.type==='animal'){const a=S.animals[nearest.i];ic=LIVESTOCK[a.t].e;lb=a.ready?'거두기':(a.fed?'쓰다듬기':'먹이주기');}
     else if(nearest.type==='wild'){ic=PETSPEC[wilds[nearest.wi].sp].ef;lb='다가가기';}
     else if(nearest.type==='forage'){ic=META[FORAGE_DEF[nearest.i].k].i;lb='줍기';}
@@ -1230,9 +1285,11 @@ function doAction(){
   if(nearest.type==='npc')openNpc(nearest.id);
   else if(nearest.type==='rnpc')openRegionNpc(nearest.id);
   else if(nearest.type==='starnpc')openStarSpirit();
+  else if(nearest.type==='roomedit')openRoomEditor();
   else if(nearest.type==='human')openHuman(nearest.id);
   else if(nearest.type==='mumu')openMumu();
   else if(nearest.type==='trade'){activeNation=null;atSea=false;tradeTab='sell';openTrade();}
+  else if(nearest.type==='cook')openCookpot();
   else if(nearest.type==='animal')animalAct(nearest.i,nearest.ax,nearest.ay);
   else if(nearest.type==='wild')openCapture(nearest.wi);
   else if(nearest.type==='forage')pickForage(nearest.i);
@@ -1244,7 +1301,7 @@ function doAction(){
 function pickForage(i){
   const k=FORAGE_DEF[i].k;
   forageUntil[i]=now()+30000;
-  const fb=petForageBonus(); addInv(k,1+fb); addXp(2); sPick();
+  const fb=petForageBonus()+buffYield(); addInv(k,1+fb); addXp(2); sPick();
   spark(FORAGE_DEF[i].tx*TILE+24,FORAGE_DEF[i].ty*TILE+16);
   const cb=petCoinBonus();
   toast(META[k].i+' '+META[k].n+' +'+(1+fb)+(fb?' 🍀':'')+(cb?'  🪙+'+cb:''));
@@ -1266,7 +1323,7 @@ function usePlot(i){
   }
   else if(p.state==='ready'){
     const c=CROPS[p.crop];
-    addInv(p.crop,c.yield); addXp(5); sYes();
+    addInv(p.crop,c.yield+buffYield()); addXp(5); sYes();
     spark(PLOT_DEF[i].tx*TILE+24,PLOT_DEF[i].ty*TILE+10,c.e);
     const cb=petCoinBonus();
     toast(c.e+' '+c.n+' +'+c.yield+' 수확!'+(cb?'  🪙+'+cb:''));
@@ -1321,7 +1378,7 @@ function openFishing(){
 function startTiming(){
   const rr=FRAR[FISH[fish.fk].rar];
   fish.phase='time'; fish.t0=now(); fish.pos=0.5;
-  fish.zh=Math.min(0.45,rr.zone+petFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
+  fish.zh=Math.min(0.48,rr.zone+petFishBonus()+buffFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
   // 전설은 2번 연속 성공해야 잡혀요
   fish.need=FISH[fish.fk].rar>=3?2:1;
   fzone.style.display='block';
@@ -1702,6 +1759,7 @@ function gearCharm(){
   let g=(DRESSES[S.outfit.dress].charm||0)+(HAIRS[S.outfit.hair].charm||0)+(ACCS[S.outfit.acc].charm||0);
   g+=(HAIRSTYLES[S.outfit.hairstyle]&&HAIRSTYLES[S.outfit.hairstyle].charm)||0;
   g+=(SHOES[S.outfit.shoes]&&SHOES[S.outfit.shoes].charm)||0;
+  g+=buffCharm();
   if(S.outfit.wings)g+=3; return g;
 }
 function openStats(){
@@ -1737,6 +1795,7 @@ function openStats(){
 $('btnStats').addEventListener('pointerdown',()=>{audio();openStats();});
 $('btnSave').addEventListener('pointerdown',()=>{audio();saveGame();sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
+$('btnRoom').addEventListener('pointerdown',()=>{audio();enterRoom();});
 $('fdexbtn').addEventListener('pointerdown',()=>{audio();openFishDex();});
 $('capbtn').addEventListener('pointerdown',()=>{
   if(!cap.on)return; audio();
@@ -1885,6 +1944,106 @@ function openShop(){
   }));
 }
 
+/* ============ 요리·조합 UI ============ */
+let cookTab='make';
+function openCookpot(){
+  let html='<div class="tabbtns">'
+    +'<button class="tabb'+(cookTab==='make'?' on':'')+'" id="ckmake">요리하기 🍳</button>'
+    +'<button class="tabb'+(cookTab==='eat'?' on':'')+'" id="ckeat">내 요리 🍽️</button>'
+    +'<button class="tabb'+(cookTab==='dex'?' on':'')+'" id="ckdex">도감 📖</button></div>';
+  if(cookTab==='make'){
+    html+='<div class="small" style="text-align:center;margin-bottom:6px">재료를 모아 요리를 만들어요! 먹으면 잠깐 특별한 힘이 생겨요 ✨</div>';
+    for(const k in RECIPES){
+      const r=RECIPES[k], m=META[k], can=needMet(r.need), bf=BUFFS[r.buff];
+      html+='<div class="card rowline"><div style="font-size:26px">'+m.i+'</div>'
+        +'<div class="grow"><div>'+m.n+' <span class="small">'+bf.e+' '+bf.desc+'</span></div>'
+        +'<div class="small" style="color:'+(can?'#59c97b':'#c08a8a')+'">재료: '+needText(r.need)+'</div></div>'
+        +'<button class="pillbtn'+(can?' mint':' gray')+'" data-cook="'+k+'">만들기</button></div>';
+    }
+  }else if(cookTab==='eat'){
+    const dishes=Object.keys(RECIPES).filter(k=>inv(k)>0);
+    if(!dishes.length)html+='<div class="card small" style="text-align:center;padding:22px">아직 만든 요리가 없어요.<br>요리하기 탭에서 만들어 봐요! 🍳</div>';
+    for(const k of dishes){
+      const m=META[k], bf=BUFFS[RECIPES[k].buff];
+      html+='<div class="card rowline"><div style="font-size:26px">'+m.i+'</div>'
+        +'<div class="grow"><div>'+m.n+' <span class="small">×'+inv(k)+'</span></div>'
+        +'<div class="small">'+bf.e+' '+bf.desc+' · '+RECIPES[k].dur+'초</div></div>'
+        +'<button class="pillbtn pink" data-eat="'+k+'">먹기 🍽️</button></div>';
+    }
+    if(dishes.length)html+='<div class="small" style="text-align:center;margin-top:4px">요리는 🦊루비 상점에 비싸게 팔 수도 있어요</div>';
+  }else{
+    const keys=Object.keys(RECIPES), got=keys.filter(k=>S.cookdex[k]).length;
+    html+='<div class="small" style="text-align:center;margin-bottom:8px">발견한 요리 '+got+' / '+keys.length+'</div><div class="dexgrid">';
+    for(const k of keys){const has=S.cookdex[k],m=META[k];
+      html+='<div class="dexcell"><div style="font-size:22px">'+(has?m.i:'❔')+'</div><div class="small">'+(has?m.n:'???')+'</div>'+(has?'<div class="small" style="color:#e8548e">×'+S.cookdex[k]+'</div>':'')+'</div>';}
+    html+='</div>';
+  }
+  html+='<div class="small" style="text-align:center;margin-top:6px">내 코인: 🪙 '+S.coins+'</div>';
+  openModal('🍳 요리솥',html);
+  const mk=$('ckmake'),ea=$('ckeat'),dx=$('ckdex');
+  if(mk)mk.addEventListener('pointerdown',()=>{cookTab='make';openCookpot();});
+  if(ea)ea.addEventListener('pointerdown',()=>{cookTab='eat';openCookpot();});
+  if(dx)dx.addEventListener('pointerdown',()=>{cookTab='dex';openCookpot();});
+  mbody.querySelectorAll('[data-cook]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.cook, r=RECIPES[k];
+    if(!needMet(r.need)){toast('🥕 재료가 부족해요!');sNo();return;}
+    consumeNeed(r.need); addInv(k,1);
+    const isNew=!S.cookdex[k]; S.cookdex[k]=(S.cookdex[k]||0)+1;
+    sYes();confetti(12);spark(player.x,player.y-30,META[k].i);
+    toast(META[k].i+' '+META[k].n+' 완성!'+(isNew?' ✨새 레시피!':''));petXpGain(2);updateHUD();saveGame();openCookpot();
+  }));
+  mbody.querySelectorAll('[data-eat]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.eat; if(inv(k)<=0)return;
+    addInv(k,-1); const r=RECIPES[k], bf=BUFFS[r.buff];
+    S.buff={type:r.buff,until:now()+r.dur*1000};
+    sYes();confetti(10);
+    banner(bf.e+' '+bf.n,META[k].n+'을(를) 먹었어요!');
+    toast(bf.e+' '+bf.n+' 발동! '+r.dur+'초 동안 '+bf.desc);
+    updateHUD();saveGame();openCookpot();
+  }));
+}
+/* ============ 내 방 꾸미기 UI ============ */
+let roomSel='bed', roomErase=false;
+function openRoomEditor(){
+  if(!S.roomOwned.includes(roomSel))roomSel=S.roomOwned[0]||'bed';
+  let html='<div class="small" style="text-align:center;margin-bottom:6px">가구를 고르고 칸을 눌러 놓아요! 🧹 지우개로 치울 수 있어요</div>';
+  html+='<div style="margin-bottom:6px">';
+  html+='<button class="chip'+(roomErase?' on':'')+'" data-sel="__erase">🧹 지우개</button>';
+  for(const k of S.roomOwned){const f=FURN[k];if(!f)continue;
+    html+='<button class="chip'+(!roomErase&&roomSel===k?' on':'')+'" data-sel="'+k+'">'+f.e+' '+f.n+'</button>';}
+  html+='</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
+  for(let gy=0;gy<RPR;gy++)for(let gx=0;gx<RPC;gx++){
+    const key=gx+','+gy, pl=S.room[key];
+    html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #efd8e6;background:#fffdf8;font-size:22px;line-height:1">'+(pl&&FURN[pl]?FURN[pl].e:'')+'</button>';
+  }
+  html+='</div>';
+  const shop=Object.keys(FURN).filter(k=>!S.roomOwned.includes(k));
+  if(shop.length){
+    html+='<div class="small" style="margin:8px 4px 4px">🛒 가구 상점</div>';
+    for(const k of shop){const f=FURN[k];
+      html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
+        +'<div class="grow"><div>'+f.n+'</div><div class="small">🪙 '+f.cost+'</div></div>'
+        +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
+  }else html+='<div class="small" style="text-align:center;margin-top:4px">모든 가구를 모았어요! 🎉</div>';
+  html+='<div class="small" style="text-align:center;margin-top:6px">내 코인: 🪙 '+S.coins+'</div>';
+  openModal('🛏️ 내 방 꾸미기',html);
+  mbody.querySelectorAll('[data-sel]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const v=b.dataset.sel; if(v==='__erase')roomErase=true; else{roomErase=false;roomSel=v;} sTap(); openRoomEditor();
+  }));
+  mbody.querySelectorAll('[data-cell]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const key=b.dataset.cell;
+    if(roomErase){ if(S.room[key]){delete S.room[key];sTap();} }
+    else{ if(!S.roomOwned.includes(roomSel))return; S.room[key]=roomSel; sPick(); }
+    saveGame(); openRoomEditor();
+  }));
+  mbody.querySelectorAll('[data-buyf]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.buyf, f=FURN[k];
+    if(S.coins<f.cost){toast('🪙 코인이 부족해요!');sNo();return;}
+    S.coins-=f.cost; S.roomOwned.push(k); roomSel=k; roomErase=false; sCoin(); confetti(10);
+    toast('🎁 '+f.n+' 구입!'); updateHUD(); saveGame(); openRoomEditor();
+  }));
+}
 /* ============ 무역 UI ============ */
 let tradeTab='sell';
 function openTrade(){
@@ -2628,8 +2787,10 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
 let world='out'; // 'out' 숲 / 'in' 성안 / 'garden' 별빛 정원
 const IW=20, IH=14;
 const GW=18, GH=13; // 별빛 정원 크기
-function worldW(){return (world==='in'?IW:world==='garden'?GW:MAP_W)*TILE;}
-function worldH(){return (world==='in'?IH:world==='garden'?GH:MAP_H)*TILE;}
+const RW=9, RH=7;    // 내 방 크기
+function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:MAP_W)*TILE;}
+function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:MAP_H)*TILE;}
+const ROOMEDIT={e:'🎨',n:'꾸미기',tx:7.6,ty:4.9}; ROOMEDIT.px=ROOMEDIT.tx*TILE+24; ROOMEDIT.py=ROOMEDIT.ty*TILE+30;
 const PORTAL={tx:OX+20,ty:2}; PORTAL.px=PORTAL.tx*TILE+24; PORTAL.py=PORTAL.ty*TILE+24;
 const STARNPC={e:'🌟',n:'별의 정령',px:GW/2*TILE,py:5*TILE+24};
 const RANKS=[
@@ -2681,7 +2842,7 @@ const HGIFT={
 };
 function addRenown(np){
   const before=curRank();
-  np=Math.round(np*petRenownMul());
+  np=Math.round(np*petRenownMul()*buffRenownMul());
   S.renown+=np; toast('👑 왕국 명성 +'+np);
   const after=curRank();
   if(after>before){
@@ -3069,6 +3230,28 @@ function openStarSpirit(){
       toast(gg[2]+' 별의 선물 +'+gg[1]); petXpGain(3); saveGame(); }},
     {label:'그냥 구경할게요',gray:true}]);
 }
+function drawCookpot(){
+  const bob=Math.sin(T*2)*1.5;
+  drawEmoji(COOKPOT.e,COOKPOT.px,COOKPOT.py+bob,34,15);
+  const x=COOKPOT.px-cam.x,y=COOKPOT.py-cam.y;
+  if(x<-40||x>W+40)return;
+  ctx.globalAlpha=.4+Math.sin(T*3)*.2;ctx.fillStyle='#fff';
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(x-6+i*6,y-24-Math.sin(T*2+i)*4,3,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText(COOKPOT.n,x,y+20);
+  const canCook=Object.keys(RECIPES).some(k=>needMet(RECIPES[k].need));
+  if(canCook){const by=y-40+Math.sin(T*3)*2.5;ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(x,by,12,0,7);ctx.fill();ctx.stroke();ctx.font='14px serif';ctx.fillText('🍳',x,by+1);}
+}
+function drawBuff(){
+  const b=activeBuff(); if(!b)return;
+  const left=Math.ceil((S.buff.until-now())/1000), info=BUFFS[b];
+  const label=info.e+' '+info.n+' '+left+'초';
+  ctx.font='13px Jua, sans-serif';const w=ctx.measureText(label).width+22, x=W/2-w/2, y=6;
+  ctx.fillStyle='rgba(90,60,75,.85)';
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,24,12);ctx.fill();}else ctx.fillRect(x,y,w,24);
+  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,W/2,y+12);ctx.textBaseline='alphabetic';
+}
 function drawGarden(){
   const ox=-cam.x, oy=-cam.y;
   const sky=ctx.createLinearGradient(0,0,0,H);
@@ -3119,6 +3302,43 @@ function drawPortal(){
   ctx.fillStyle='rgba(90,74,82,.8)';const lbl='별빛 정원',lw=ctx.measureText(lbl).width+14;
   ctx.font='12px Jua, sans-serif';if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x-lw/2,y+24,lw,17,8);ctx.fill();}else ctx.fillRect(x-lw/2,y+24,lw,17);
   ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(lbl,x,y+36);
+}
+/* ============ 내 방 꾸미기 (걸어다니는 공간) ============ */
+const RPC=7, RPR=4; // 가구 배치 격자 (열×행)
+function enterRoom(){ if(uiOpen>0)return; world='room'; player.x=RW/2*TILE; player.y=(RH-1.5)*TILE; sYes(); toast('🛏️ 내 방에 왔어요! 🎨 이젤에서 꾸며 봐요'); }
+function exitRoom(){ world='out'; player.x=CASTLE.x+CASTLE.w/2; player.y=CASTLE.y+CASTLE.h+30; sTap(); toast('🌳 밖으로 나왔어요'); }
+function blockedRoom(px,py){
+  if(px<TILE*0.6||px>RW*TILE-TILE*0.6)return true;
+  if(py<TILE*1.8||py>(RH-0.4)*TILE)return true;
+  return false;
+}
+function drawRoom(){
+  const ox=-cam.x, oy=-cam.y, rw=RW*TILE, rh=RH*TILE;
+  ctx.fillStyle='#c9a0b4';ctx.fillRect(0,0,W,H);
+  // 벽지
+  ctx.fillStyle='#f2dcec';ctx.fillRect(ox,oy,rw,TILE*2);
+  ctx.fillStyle='#e6c4dc';for(let x=0;x<RW;x++)if(x%2===0)ctx.fillRect(ox+x*TILE,oy,TILE,TILE*2);
+  ctx.fillStyle='#b98da2';ctx.fillRect(ox,oy+TILE*1.9,rw,6);
+  // 나무 바닥
+  ctx.fillStyle='#e8c9a0';ctx.fillRect(ox,oy+TILE*2,rw,rh-TILE*2);
+  ctx.strokeStyle='rgba(150,110,70,.18)';ctx.lineWidth=1;
+  for(let y=2;y<=RH;y++){ctx.beginPath();ctx.moveTo(ox,oy+y*TILE);ctx.lineTo(ox+rw,oy+y*TILE);ctx.stroke();}
+  for(let x=0;x<=RW;x+=2){ctx.beginPath();ctx.moveTo(ox+x*TILE,oy+TILE*2);ctx.lineTo(ox+x*TILE,oy+rh);ctx.stroke();}
+  // 벽 창문
+  ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('🪟',ox+RW*0.28*TILE,oy+TILE*1.45);
+  // 놓인 가구 (y정렬)
+  const items=[];
+  for(const key in S.room){const p=key.split(',');const gx=+p[0],gy=+p[1],f=FURN[S.room[key]];if(!f)continue;
+    const wx=(1+gx+0.5)*TILE, wy=(2+gy+0.95)*TILE; items.push({wy,wx,e:f.e});}
+  items.sort((a,b)=>a.wy-b.wy).forEach(it=>drawEmoji(it.e,it.wx,it.wy,30,12));
+  // 이젤(꾸미기)
+  drawEmoji(ROOMEDIT.e,ROOMEDIT.px,ROOMEDIT.py+Math.sin(T*2)*1.5,30,12);
+  {const x=ROOMEDIT.px-cam.x,y=ROOMEDIT.py-cam.y;ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('꾸미기',x,y+18);}
+  // 출구
+  const exX=ox+RW/2*TILE, exY=oy+(RH-0.55)*TILE;
+  ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('🚪',exX,exY);
+  ctx.font='11px Jua, sans-serif';ctx.fillStyle='#7a5c40';ctx.fillText('⬇ 나가기',exX,exY-26);
 }
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
@@ -3180,6 +3400,13 @@ function drawMini(){
     mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(gxm(player.x),gym(player.y),2.6,0,7);mm.fill();mm.stroke();
     return;
   }
+  if(world==='room'){
+    mm.fillStyle='#e8c9a0';mm.fillRect(4,6,112,80);
+    const sc=Math.min(112/(RW*TILE),80/(RH*TILE)), rxm=v=>4+v*sc, rym=v=>6+v*sc;
+    mm.fillStyle='#c98a6a';mm.beginPath();mm.arc(rxm(ROOMEDIT.px),rym(ROOMEDIT.py),2.4,0,7);mm.fill();
+    mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(rxm(player.x),rym(player.y),2.6,0,7);mm.fill();mm.stroke();
+    return;
+  }
   // 넓어진 왕국: 공주를 따라 상하좌우로 움직이는 창
   const winX=clamp(player.x/16-60,0,Math.max(0,MAP_W*3-120));
   const winY=clamp(player.y/16-45,0,Math.max(0,MAP_H*3-90));
@@ -3217,7 +3444,7 @@ function update(dt){
   const len=Math.hypot(mvx,mvy);
   player.moving=len>0.15;
   if(player.moving){
-    const sp=player.spd*petSpeedMul()*Math.min(len,1)*dt;
+    const sp=player.spd*petSpeedMul()*buffSpeedMul()*Math.min(len,1)*dt;
     // 축 분리 이동
     const stepx=mvx/Math.max(len,0.001)*sp, stepy=mvy/Math.max(len,0.001)*sp;
     if(!blocked(player.x+stepx+Math.sign(stepx)*10,player.y))player.x+=stepx;
@@ -3237,6 +3464,8 @@ function update(dt){
     if(player.y>(IH-1.35)*TILE&&Math.abs(player.x-10*TILE)<44)exitCastle();
   }else if(world==='garden'){
     if(player.y>(GH-1.1)*TILE&&Math.abs(player.x-GW/2*TILE)<54)exitGarden();
+  }else if(world==='room'){
+    if(player.y>(RH-0.75)*TILE&&Math.abs(player.x-RW/2*TILE)<52)exitRoom();
   }
   // 가축 생산 완료 체크
   S.animals.forEach(a=>{
@@ -3345,6 +3574,14 @@ function render(){
     drawMini();
     return;
   }
+  if(world==='room'){
+    drawRoom();
+    drawPetFollow();
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=p2.s+'px serif';ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
+    drawMini();
+    return;
+  }
   if(world==='garden'){
     drawGarden();
     drawPetFollow();
@@ -3368,6 +3605,7 @@ function render(){
   drawNpcs();
   drawRegionNpcs();
   drawPortal();
+  drawCookpot();
   // 나비
   BFLIES.forEach(b=>{
     const wx=(b.x+Math.sin(T*0.6+b.p)*2.5)*TILE, wy=(b.y+Math.sin(T*0.9+b.p*2)*1.6)*TILE;
@@ -3392,6 +3630,7 @@ function loop(){
   const t=now(),dt=Math.min((t-last)/1000,0.05);last=t;
   if(S)update(dt);
   if(S)render();
+  if(S)drawBuff();
   requestAnimationFrame(loop);
 }
 
