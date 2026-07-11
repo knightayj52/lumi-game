@@ -318,7 +318,7 @@ let mCur='main';
 function curTrackId(){
   if(!S)return 'main';
   if(world==='in'||world==='room')return 'castle';
-  if(world==='garden')return 'snow';
+  if(world==='garden'||world==='mine')return 'snow';
   const txp=player.x/TILE;
   if(txp>=GATE3_X)return 'snow';
   if(txp>=GATE2_X)return 'meadow';
@@ -394,6 +394,8 @@ const META={
   starfish:{n:'별빛물고기',i:'🌟',sell:85},
   tang:{n:'열대어',i:'🐠',sell:30}, turtle:{n:'바다거북',i:'🐢',sell:55}, pearl:{n:'진주조개',i:'🦪',sell:62},
   seal:{n:'꼬마물범',i:'🦭',sell:68}, moonfish:{n:'달빛가오리',i:'🌜',sell:74}, crystalfish:{n:'수정물고기',i:'💠',sell:115},
+  stoneOre:{n:'반짝 돌',i:'🪨',sell:6}, ironOre:{n:'철 원석',i:'⚙️',sell:16}, crystalOre:{n:'수정 원석',i:'🔮',sell:30},
+  gem:{n:'빛나는 보석',i:'💎',sell:95},
   carrotSoup:{n:'당근 수프',i:'🥣',sell:22},
   berryCake:{n:'딸기 케이크',i:'🍰',sell:40},
   mushGratin:{n:'버섯 그라탕',i:'🧀',sell:45},
@@ -484,6 +486,19 @@ const SHOES={
   mint:{n:'민트 구두',c:'#7ed6b0',charm:2,buy:70},
   purple:{n:'보라 구두',c:'#a97ee0',charm:2,buy:70},
 };
+const WINGS={
+  butterfly:{n:'나비 날개',charm:3,how:'레벨 5 달성',c1:'#ffffff',c2:'#ffd9e7',line:'#ffc3d9'},
+  fairy:{n:'요정 날개',charm:4,buy:150,c1:'#eafff5',c2:'#b9f0d8',line:'#8fd6b5'},
+  ice:{n:'얼음 날개',charm:5,buy:240,c1:'#f0faff',c2:'#bfe6fa',line:'#8fc6e8'},
+  star:{n:'별빛 날개',charm:5,buy:240,c1:'#fffbe0',c2:'#ffe98f',line:'#f2c14e',spark:true},
+  angel:{n:'천사 날개',charm:6,buy:320,c1:'#ffffff',c2:'#fff3dc',line:'#e8d5a8',big:true},
+  flame:{n:'불꽃 날개',charm:6,gems:2,c1:'#ffe2b0',c2:'#ff9d6b',line:'#e86a3c',spark:true},
+  unicorn:{n:'유니콘 날개',charm:7,gems:2,c1:'#ffe4f2',c2:'#cdeeff',line:'#e0a8d8',spark:true},
+  moon:{n:'달빛 날개',charm:7,gems:3,c1:'#eeeaff',c2:'#c3b6f5',line:'#9a8ae0',spark:true},
+  rainbow:{n:'무지개 날개',charm:8,gems:3,rainbow:true,line:'#e79ab5',spark:true},
+  dragon:{n:'용의 날개',charm:8,gems:4,c1:'#d8c3ff',c2:'#9a72e8',line:'#6f4ac9',big:true},
+  royal:{n:'왕실의 날개',charm:10,gems:5,c1:'#fff3c8',c2:'#f4ce5e',line:'#d9a83c',big:true,spark:true},
+};
 const ACCS={
   crown:{n:'왕관',charm:1,how:'처음부터'},
   straw:{n:'밀짚모자',charm:1,how:'토끼 토토 돕기'},
@@ -508,7 +523,25 @@ const ACCS={
 };
 const STATN={charm:{n:'매력',e:'💖',c:'#ff8fb8'},wis:{n:'지혜',e:'📖',c:'#8fb8ff'},
   kind:{n:'친절',e:'🌷',c:'#7ed6a5'},lead:{n:'리더십',e:'👑',c:'#ffc94d'}};
-const LEVEL_XP=[0,100,240,430,680,1000,1400,1900,2500,3200];
+const LEVEL_XP=[0,100,240,430,680,1000,1400,1900,2500,3200,
+  4050,5000,6100,7350,8800,10450,12350,14550,17050,19900,
+  23100,26700,30700,35200,40200,45800,52100,59100,66900,75500];
+const LV_PERKS={
+  12:'👟 이동 속도 +6%',
+  15:'🌿 채집이 20% 빨리 다시 자라요',
+  18:'💰 판매 가격 +10%',
+  21:'🎣 낚시 초록 칸이 커져요',
+  24:'🍳 요리 버프가 30초 길어져요',
+  27:'🌾 밭 작물이 15% 빨리 자라요',
+  30:'👑 왕국의 별 — 공주가 반짝여요!',
+};
+function lvSpeedMul(){return S&&S.level>=12?1.06:1;}
+function forageCdMul(){return S&&S.level>=15?0.8:1;}
+function sellMul(){let m=1;if(S&&S.level>=18)m*=1.1;if(S&&curRank()>=5)m*=1.1;return m;}
+function coinMul(){return S&&curRank()>=7?1.1:1;}
+function lvFishBonus(){return S&&S.level>=21?0.02:0;}
+function cookDurBonus(){return S&&S.level>=24?30:0;}
+function growMul(){let m=1;if(S&&S.level>=27)m*=0.85;if(S&&curRank()>=6)m*=0.85;return m;}
 const UNLOCK={2:['dress_purple'],3:['dress_yellow','hair_pink'],4:['hair_gold'],5:['dress_mint','wings']};
 
 const NPCS={
@@ -695,7 +728,7 @@ function nearNations(){return NATIONS.filter(nt=>nt.tier===0&&nationUnlocked(nt)
 function curVisitor(){const nn=nearNations();return nn.length?nn[tradeBucket()%nn.length]:NATIONS[0];}
 let activeNation=null, atSea=false;
 function nation(){return activeNation||curVisitor();}
-function tradePrice(k){const m=nation().demand[k]||1; return Math.max(1,Math.round((META[k].sell||0)*m));}
+function tradePrice(k){const m=nation().demand[k]||1; return Math.max(1,Math.round((META[k].sell||0)*m*sellMul()*coinMul()));}
 function reqDone(nat){nat=nat||nation();return S.trade&&S.trade.done&&S.trade.done[nat.id]===tradeBucket();}
 const VOYAGE_MIN=40; // 명성 40부터 다른 왕국로 항해 가능
 const TRADER={e:'⛵',n:'무역선'};
@@ -1050,7 +1083,7 @@ function freshState(){return{
   stats:{charm:1,wis:1,kind:1,lead:1},
   inv:{carrotSeed:3,strawSeed:1},
   outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false},
-  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:false},
+  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:[]},
   q:{}, deerTold:{}, repeats:0,
   plots:PLOT_DEF.map(()=>({state:'empty',crop:null,elapsed:0})),
   forage:FORAGE_DEF.map(()=>0), // 남은 리스폰(ms), 0이면 있음
@@ -1129,6 +1162,9 @@ function applyLoaded(d){
   if(!S.outfit.shoes)S.outfit.shoes='pink';
   if(!S.owned.hairstyles)S.owned.hairstyles=['long'];
   if(!S.owned.shoes)S.owned.shoes=['pink'];
+  if(!Array.isArray(S.owned.wings))S.owned.wings=(S.owned.wings===true?['butterfly']:[]);
+  if(S.outfit.wings===true)S.outfit.wings='butterfly';
+  if(S.outfit.wings&&!WINGS[S.outfit.wings])S.outfit.wings=false;
   S.buff=null; if(!S.cookdex)S.cookdex={};
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
   if(!S.roomWall)S.roomWall={}; if(!S.roomDeco)S.roomDeco={wall:'pink',floor:'wood'};
@@ -1228,6 +1264,7 @@ function blocked(px,py){
   if(world==='garden')return blockedGarden(px,py);
   if(world==='room')return blockedRoom(px,py);
   if(world==='port')return blockedPort(px,py);
+  if(world==='mine')return blockedMine(px,py);
   if(tileType(px,py)===1)return true; // 바다
   if(px>CASTLE.x&&px<CASTLE.x+CASTLE.w&&py>CASTLE.y&&py<CASTLE.y+CASTLE.h){
     if(Math.abs(px-(CASTLE.x+CASTLE.w/2))<26&&py>CASTLE.y+CASTLE.h-40)return false; // 성문 통로
@@ -1268,11 +1305,23 @@ function findNearest(){
   if(world==='garden'){
     const d=Math.hypot(player.x-STARNPC.px,player.y-STARNPC.py);
     if(d<72)consider(d,{type:'starnpc'});
+    const de=Math.hypot(player.x-ELF.px,player.y-ELF.py);
+    if(de<70)consider(de,{type:'elf'});
     nearest=best; return;
   }
   if(world==='room'){
     const d=Math.hypot(player.x-ROOMEDIT.px,player.y-ROOMEDIT.py);
     if(d<74)consider(d,{type:'roomedit'});
+    nearest=best; return;
+  }
+  if(world==='mine'){
+    MINENODES.forEach((o,i)=>{
+      if(now()<mineUntil[i])return;
+      const d=Math.hypot(player.x-o.px,player.y-o.py);
+      if(d<62)consider(d,{type:'ore',idx:i});
+    });
+    const dd=Math.hypot(player.x-DWARF.px,player.y-DWARF.py);
+    if(dd<74)consider(dd,{type:'dwarf'});
     nearest=best; return;
   }
   if(world==='port'){
@@ -1335,10 +1384,13 @@ function updateActBtn(){
     if(nearest.type==='npc'){ic=NPCS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='rnpc'){ic=REGIONNPC[nearest.id].e;lb='말하기';}
     else if(nearest.type==='starnpc'){ic='🌟';lb='말하기';}
+    else if(nearest.type==='elf'){ic='🧝';lb='말하기';}
     else if(nearest.type==='roomedit'){ic='🎨';lb='꾸미기';}
     else if(nearest.type==='porttrade'){ic=nation().e;lb='무역하기';}
     else if(nearest.type==='porthome'){ic='⛵';lb='귀항하기';}
     else if(nearest.type==='portlocal'){ic='🧒';lb='말하기';}
+    else if(nearest.type==='ore'){ic='⛏️';lb='캐기';}
+    else if(nearest.type==='dwarf'){ic='🧔';lb='말하기';}
     else if(nearest.type==='human'){ic=HUMANS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='mumu'){ic=MUMU.e;lb='말하기';}
     else if(nearest.type==='trade'){ic=curVisitor().e;lb='무역하기';}
@@ -1364,12 +1416,15 @@ function doAction(){
   if(nearest.type==='npc')openNpc(nearest.id);
   else if(nearest.type==='rnpc')openRegionNpc(nearest.id);
   else if(nearest.type==='starnpc')openStarSpirit();
+  else if(nearest.type==='elf')openElf();
   else if(nearest.type==='roomedit')openRoomEditor();
   else if(nearest.type==='porttrade'){tradeTab='sell';openTrade();}
   else if(nearest.type==='portlocal')openPortLocal();
+  else if(nearest.type==='ore')mineHit(nearest.idx);
+  else if(nearest.type==='dwarf')openDwarf();
   else if(nearest.type==='porthome'){
     dialog('⛵','무역선',['우리 왕국으로 돌아갈까요?'],[
-      {label:'집으로 출항! ⛵',fn:()=>exitPort()},
+      {label:'집으로 출항! ⛵',fn:()=>warp(exitPort)},
       {label:'더 둘러볼래요',gray:true}]);
   }
   else if(nearest.type==='human')openHuman(nearest.id);
@@ -1386,7 +1441,7 @@ function doAction(){
 /* ============ 채집 ============ */
 function pickForage(i){
   const k=FORAGE_DEF[i].k;
-  forageUntil[i]=now()+30000;
+  forageUntil[i]=now()+Math.round(30000*forageCdMul());
   const fb=petForageBonus()+buffYield(); addInv(k,1+fb); addXp(2); sPick();
   spark(FORAGE_DEF[i].tx*TILE+24,FORAGE_DEF[i].ty*TILE+16);
   const cb=petCoinBonus();
@@ -1404,7 +1459,7 @@ function usePlot(i){
     toast('💧 물을 줬어요! 쑥쑥 자라라~');
   }
   else if(p.state==='grow'){
-    const left=Math.ceil((CROPS[p.crop].time-(now()-p.t0))/1000);
+    const left=Math.ceil((CROPS[p.crop].time*growMul()-(now()-p.t0))/1000);
     toast('⏳ '+Math.max(left,1)+'초 후에 수확할 수 있어요');
   }
   else if(p.state==='ready'){
@@ -1464,7 +1519,7 @@ function openFishing(){
 function startTiming(){
   const rr=FRAR[FISH[fish.fk].rar];
   fish.phase='time'; fish.t0=now(); fish.pos=0.5;
-  fish.zh=Math.min(0.42,rr.zone+petFishBonus()+buffFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
+  fish.zh=Math.min(0.44,rr.zone+petFishBonus()+buffFishBonus()+lvFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
   // 전설은 2번 연속 성공해야 잡혀요
   fish.need=FISH[fish.fk].rar>=3?2:1;
   fzone.style.display='block';
@@ -1616,7 +1671,7 @@ function grantItem(id){
   if(t==='acc'&&!S.owned.accs.includes(k)){S.owned.accs.push(k);toast('🎁 '+ACCS[k].n+' 획득!');}
 }
 function applyReward(r){
-  if(r.coins){S.coins+=r.coins;sCoin();toast('🪙 +'+r.coins);}
+  if(r.coins){const rc=Math.round(r.coins*coinMul());S.coins+=rc;sCoin();toast('🪙 +'+rc);}
   if(r.stats)for(const k in r.stats){S.stats[k]=Math.min(99,S.stats[k]+r.stats[k]);
     toast(STATN[k].e+' '+STATN[k].n+' +'+r.stats[k]);}
   if(r.items)r.items.forEach(grantItem);
@@ -1634,9 +1689,10 @@ function levelUp(){
   sLevel(); confetti(28);
   const bonus=S.level*10; S.coins+=bonus;
   banner('레벨 업! Lv.'+S.level,'🪙 보너스 +'+bonus);
+  if(LV_PERKS[S.level])setTimeout(()=>toast('🎖️ 새 능력! '+LV_PERKS[S.level]),700);
   const ul=UNLOCK[S.level];
   if(ul)ul.forEach(id=>{
-    if(id==='wings'){S.owned.wings=true;toast('🎁 나비 날개 획득! 옷장에서 착용해요 🦋');}
+    if(id==='wings'){if(!S.owned.wings.includes('butterfly'))S.owned.wings.push('butterfly');toast('🎁 나비 날개 획득! 옷장에서 착용해요 🦋');}
     else grantItem(id);
   });
 }
@@ -1845,7 +1901,7 @@ function gearCharm(){
   g+=(HAIRSTYLES[S.outfit.hairstyle]&&HAIRSTYLES[S.outfit.hairstyle].charm)||0;
   g+=(SHOES[S.outfit.shoes]&&SHOES[S.outfit.shoes].charm)||0;
   g+=buffCharm();
-  if(S.outfit.wings)g+=3; return g;
+  if(S.outfit.wings&&WINGS[S.outfit.wings])g+=WINGS[S.outfit.wings].charm; return g;
 }
 function openStats(){
   let html='<div class="card" style="text-align:center"><div style="font-size:15px">👸 '+pname()+' 공주 · Lv.'+S.level+'</div>'
@@ -1880,7 +1936,7 @@ function openStats(){
 $('btnStats').addEventListener('pointerdown',()=>{audio();openStats();});
 $('btnSave').addEventListener('pointerdown',()=>{audio();saveGame();sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
-$('btnRoom').addEventListener('pointerdown',()=>{audio();enterRoom();});
+$('btnRoom').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;warp(enterRoom);});
 $('fdexbtn').addEventListener('pointerdown',()=>{audio();openFishDex();});
 $('capbtn').addEventListener('pointerdown',()=>{
   if(!cap.on)return; audio();
@@ -1963,9 +2019,15 @@ function openCloset(){
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
   html+='<div class="small" style="margin:8px 4px 4px">👠 구두</div>'+chipRow('shoes',SHOES,S.owned.shoes,S.outfit.shoes);
   html+='<div class="small" style="margin:8px 4px 4px">✨ 장식</div>'+chipRow('acc',ACCS,S.owned.accs,S.outfit.acc);
-  html+='<div class="small" style="margin:8px 4px 4px">🦋 날개</div>'
-    +'<button class="chip'+(S.outfit.wings?' on':'')+(S.owned.wings?'':' lock')+'" data-kind="wings" data-k="w">'
-    +(S.owned.wings?'':'🔒 ')+'나비 날개 <span class="small">💖+3'+(S.owned.wings?'':' · 레벨 5')+'</span></button>';
+  html+='<div class="small" style="margin:8px 4px 4px">🦋 날개</div><div style="margin-bottom:4px">';
+  html+='<button class="chip'+(!S.outfit.wings?' on':'')+'" data-kind="wings" data-k="none">없음</button>';
+  for(const k in WINGS){
+    const wdf=WINGS[k], has=S.owned.wings.includes(k), on=S.outfit.wings===k;
+    const price=has?'':(wdf.buy?' <span class="small" style="color:#c98a2a">🪙'+wdf.buy+'</span>':wdf.gems?' <span class="small" style="color:#7e5ae0">💎'+wdf.gems+'</span>':' 🔒');
+    html+='<button class="chip'+(on?' on':'')+(has?'':' lock')+'" data-kind="wings" data-k="'+k+'">'
+      +wdf.n+' <span class="small">💖+'+wdf.charm+'</span>'+price+'</button>';
+  }
+  html+='</div><div class="small" style="text-align:center;color:#a98">💎 보석은 광산의 드워프에게서 만들어요 · 보유 💎 '+inv('gem')+'</div>';
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   openModal('👗 옷장',html);
   drawCloset();
@@ -1973,7 +2035,20 @@ function openCloset(){
   const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('pointerdown',()=>{
     const kind=b.dataset.kind,k=b.dataset.k;
-    if(kind==='wings'){if(!S.owned.wings){toast('🔒 레벨 5가 되면 얻어요');sNo();return;}S.outfit.wings=!S.outfit.wings;sPick();openCloset();return;}
+    if(kind==='wings'){
+      if(k==='none'){S.outfit.wings=false;sPick();openCloset();return;}
+      const wdf=WINGS[k];
+      if(!S.owned.wings.includes(k)){
+        if(wdf.buy){
+          if(S.coins<wdf.buy){toast('🪙 코인이 부족해요! (필요: '+wdf.buy+')');sNo();return;}
+          S.coins-=wdf.buy; S.owned.wings.push(k); sCoin(); confetti(14); toast('🎁 '+wdf.n+' 획득!');
+        }else if(wdf.gems){
+          if(inv('gem')<wdf.gems){toast('💎 보석이 부족해요! (필요: '+wdf.gems+') 광산의 드워프를 찾아가요');sNo();return;}
+          addInv('gem',-wdf.gems); S.owned.wings.push(k); sLevel(); confetti(20); toast('💎 '+wdf.n+' 획득!');
+        }else{toast('🔒 '+(wdf.how||'특별한 방법으로')+' 얻어요');sNo();return;}
+      }
+      S.outfit.wings=k; sPick(); updateHUD(); openCloset(); return;
+    }
     const owned=OWNED[kind], d=DEFS[kind][k];
     if(!owned.includes(k)){
       if(d.buy){
@@ -2031,7 +2106,7 @@ function openShop(){
   }));
   mbody.querySelectorAll('[data-sellall]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.sellall,n=inv(k);if(n<=0)return;
-    addInv(k,-n);S.coins+=META[k].sell*n;sCoin();toast('🪙 +'+(META[k].sell*n));updateHUD();openShop();
+    addInv(k,-n);const got=Math.round(META[k].sell*n*sellMul()*coinMul());S.coins+=got;sCoin();toast('🪙 +'+got);updateHUD();openShop();
   }));
 }
 
@@ -2086,7 +2161,8 @@ function openCookpot(){
   mbody.querySelectorAll('[data-eat]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.eat; if(inv(k)<=0)return;
     addInv(k,-1); const r=RECIPES[k], bf=BUFFS[r.buff];
-    S.buff={type:r.buff,until:now()+r.dur*1000};
+    const bd=r.dur+cookDurBonus();
+    S.buff={type:r.buff,until:now()+bd*1000};
     sYes();confetti(10);
     banner(bf.e+' '+bf.n,META[k].n+'을(를) 먹었어요!');
     toast(bf.e+' '+bf.n+' 발동! '+r.dur+'초 동안 '+bf.desc);
@@ -2316,7 +2392,7 @@ function openTrade(){
   openModal(K.e+' '+K.n+(world==='port'?' 항구':' 무역선'),html);
 
   const tv=$('tvoyage'); if(tv)tv.addEventListener('pointerdown',()=>{sTap();openVoyage();});
-  const tb=$('tback'); if(tb)tb.addEventListener('pointerdown',()=>{closeModal();exitPort();});
+  const tb=$('tback'); if(tb)tb.addEventListener('pointerdown',()=>{closeModal();warp(exitPort);});
   $('ttsell').addEventListener('pointerdown',()=>{tradeTab='sell';openTrade();});
   $('ttbuy').addEventListener('pointerdown',()=>{tradeTab='buy';openTrade();});
   $('ttreq').addEventListener('pointerdown',()=>{tradeTab='req';openTrade();});
@@ -2386,7 +2462,7 @@ function openVoyage(){
   mbody.querySelectorAll('[data-sail]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const nt=NATIONS.find(x=>x.id===b.dataset.sail); if(!nt||!nationUnlocked(nt))return;
     sYes(); closeModal();
-    enterPort(nt);
+    warp(()=>enterPort(nt));
   }));
 }
 
@@ -2627,13 +2703,19 @@ function drawPetFollow(){
   const tx2=player.x-(player.lastdx||1)*28, ty2=player.y+8-(player.lastdy||0)*20;
   petF.x+=(tx2-petF.x)*0.07; petF.y+=(ty2-petF.y)*0.07;
   const spec=PETSPEC[pt.sp], px=petF.x-cam.x, py=petF.y-cam.y;
+  if(pt.evo){ // 진화: 금빛 이중 오라
+    ctx.strokeStyle='#f2c14e';ctx.globalAlpha=.4+Math.sin(T*3.5)*.2;ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(px,py-2,19+Math.sin(T*2.6)*2.5,0,7);ctx.stroke();
+    ctx.globalAlpha=1;
+  }
   // 레벨이 오르면 은은한 오라
   if(pt.lv>=3){
     const rc=RARN[spec.rar].c;
     ctx.strokeStyle=rc;ctx.globalAlpha=.25+Math.sin(T*4)*.15;ctx.lineWidth=2.5;
     ctx.beginPath();ctx.arc(px,py-2,15+Math.sin(T*3)*2,0,7);ctx.stroke();ctx.globalAlpha=1;
   }
-  drawSpriteAt(pt.sp,petF.x,petF.y+Math.sin(T*4)*2,22+Math.min(10,pt.lv));
+  drawSpriteAt(pt.sp,petF.x,petF.y+Math.sin(T*4)*2,22+Math.min(10,pt.lv)+(pt.evo?5:0));
+  if(pt.evo){ctx.font='11px serif';ctx.textAlign='center';ctx.fillText('⭐',px+14,py-16+Math.sin(T*3)*1.5);}
   if(pt.lv>=7){ // 작은 왕관
     ctx.font='13px serif';ctx.textAlign='center';ctx.fillText('👑',px,py-20+Math.sin(T*3)*1.5);
   }
@@ -2753,7 +2835,7 @@ function drawPlots(){
       ctx.font='14px serif';
       ctx.globalAlpha=0.6+Math.sin(T*4)*0.4;ctx.fillText('💧',cxp+14,y+6);ctx.globalAlpha=1;
     }else if(p.state==='grow'){
-      const pr=clamp((now()-p.t0)/CROPS[p.crop].time,0,1);
+      const pr=clamp((now()-p.t0)/(CROPS[p.crop].time*growMul()),0,1);
       if(pr>=1){p.state='ready';}
       ctx.font=(14+pr*12)+'px serif';ctx.fillText(pr<0.5?'🌱':'🌿',cxp,cyp);
     }else if(p.state==='ready'){
@@ -2817,16 +2899,32 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle='rgba(0,0,0,.15)';g.beginPath();g.ellipse(0,1,11,4,0,0,7);g.fill();
   g.translate(0,-bob);
   // 날개 (몸 뒤)
-  if(o.wings){
-    const flap=1+Math.sin(T*7)*0.16;
+  if(S&&S.level>=30){g.font='9px serif';g.globalAlpha=.55+Math.sin(T*5)*.35;g.textAlign='center';g.fillText('✨',11,-80);g.fillText('✨',-11,-62);g.globalAlpha=1;}
+  if(o.wings&&WINGS[o.wings]){
+    const wd=WINGS[o.wings], flap=1+Math.sin(T*7)*0.16, bigS=wd.big?1.3:1;
     for(const sgn of [-1,1]){
-      g.save();g.globalAlpha=.82;g.translate(sgn*9,-46);g.rotate(sgn*.5);g.scale(1,flap);
-      g.fillStyle='rgba(255,255,255,.9)';
+      g.save();g.globalAlpha=.85;g.translate(sgn*9,-46);g.rotate(sgn*.5);g.scale(bigS,flap*bigS);
+      if(wd.rainbow){
+        const rg=g.createLinearGradient(0,-14,0,14);
+        rg.addColorStop(0,'#ffb3b3');rg.addColorStop(.25,'#ffe2a8');rg.addColorStop(.5,'#c8f4c0');rg.addColorStop(.75,'#b3d9ff');rg.addColorStop(1,'#e0c3ff');
+        g.fillStyle=rg;
+      }else{
+        const wg=g.createLinearGradient(0,-14,0,14);
+        wg.addColorStop(0,wd.c1);wg.addColorStop(1,wd.c2);
+        g.fillStyle=wg;
+      }
       g.beginPath();g.ellipse(0,0,8,14,0,0,7);g.fill();
-      g.strokeStyle='#ffc3d9';g.lineWidth=1.3;g.stroke();
-      g.fillStyle='#ffd9e7';g.beginPath();g.ellipse(0,3.5,3.6,6.5,0,0,7);g.fill();
+      g.strokeStyle=wd.line;g.lineWidth=1.3;g.stroke();
+      if(wd.big){ // 아랫깃 (천사·용·왕실)
+        g.beginPath();g.ellipse(sgn*-2,10,5,8,sgn*.3,0,7);g.fill();g.stroke();
+      }
+      g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.ellipse(0,3.5,3.6,6.5,0,0,7);g.fill();
       g.restore();
     }g.globalAlpha=1;
+    if(wd.spark&&Math.sin(T*4)>0.3){
+      g.font='7px serif';g.textAlign='center';g.globalAlpha=.8;
+      g.fillText('✦',-16,-52);g.fillText('✦',16,-44);g.globalAlpha=1;
+    }
   }
   // 뒷머리 (헤어스타일별)
   const hs=o.hairstyle||'long';
@@ -2977,23 +3075,36 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
 
 /* ============ 성 내부 & 왕국 명성 ============ */
 let world='out'; // 'out' 숲 / 'in' 성안 / 'garden' 별빛 정원
+let fadeV=0,fadeDir=0,fadePend=null; // 관문 통과 페이드 연출
+function warp(fn){ if(fadeDir!==0)return; fadeDir=1; fadePend=fn; }
 const IW=20, IH=14;
 const GW=18, GH=13; // 별빛 정원 크기
 const RW=9, RH=7;    // 내 방 크기
 const PW=16, PH=10;  // 다른 왕국 항구 크기
-function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:world==='port'?PW:MAP_W)*TILE;}
-function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:world==='port'?PH:MAP_H)*TILE;}
+const MW=15, MH=10;  // 반짝 광산 크기
+const MINE_REN=350;  // 광산 개방 명성 (무역의 중심)
+const MINEGATE={tx:OX+60.5,ty:OY+16.5}; MINEGATE.px=MINEGATE.tx*TILE+24; MINEGATE.py=MINEGATE.ty*TILE+24;
+const MINENODES=[{tx:2.6,ty:3.6},{tx:5.4,ty:2.9},{tx:9.6,ty:3.1},{tx:12.4,ty:4.0},{tx:3.4,ty:6.8},{tx:11.2,ty:7.2}];
+MINENODES.forEach(o=>{o.px=o.tx*TILE+24;o.py=o.ty*TILE+24;});
+const DWARF={e:'🧔',n:'드워프 토르린',tx:7.4,ty:5.6}; DWARF.px=DWARF.tx*TILE+24; DWARF.py=DWARF.ty*TILE+24;
+let mineUntil=MINENODES.map(()=>0), mineHp=MINENODES.map(()=>3);
+function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:world==='port'?PW:world==='mine'?MW:MAP_W)*TILE;}
+function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:world==='port'?PH:world==='mine'?MH:MAP_H)*TILE;}
 const PSTALL={tx:4,ty:6.7}; PSTALL.px=PSTALL.tx*TILE+24; PSTALL.py=PSTALL.ty*TILE+24;
 const PSHIP={tx:12.5,ty:6.1}; PSHIP.px=PSHIP.tx*TILE+24; PSHIP.py=PSHIP.ty*TILE+24;
 const PLOCAL={tx:9.6,ty:7.8}; PLOCAL.px=PLOCAL.tx*TILE+24; PLOCAL.py=PLOCAL.ty*TILE+24;
 const ROOMEDIT={e:'🎨',n:'꾸미기',tx:7.6,ty:4.9}; ROOMEDIT.px=ROOMEDIT.tx*TILE+24; ROOMEDIT.py=ROOMEDIT.ty*TILE+30;
 const PORTAL={tx:OX+20,ty:2}; PORTAL.px=PORTAL.tx*TILE+24; PORTAL.py=PORTAL.ty*TILE+24;
 const STARNPC={e:'🌟',n:'별의 정령',px:GW/2*TILE,py:5*TILE+24};
+const ELF={e:'🧝',n:'엘프 아리엘라',px:4.2*TILE,py:7.5*TILE};
 const RANKS=[
   {min:0,  n:'조용한 성',    e:'🏠'},
   {min:40, n:'소문난 성',    e:'🏡'},
   {min:100,n:'사랑받는 왕국',e:'🏰'},
   {min:200,n:'빛나는 왕국',  e:'✨'},
+  {min:350,n:'무역의 중심',  e:'🚢', perk:'💰 판매 가격 +10%'},
+  {min:550,n:'전설의 왕국',  e:'🌟', perk:'🌾 밭 작물 15% 빨리'},
+  {min:800,n:'별들의 왕국',  e:'👑', perk:'🪙 모든 보상 +10%'},
 ];
 function curRank(){let k=1;for(let i=0;i<RANKS.length;i++)if(S.renown>=RANKS[i].min)k=i+1;return k;}
 const HUMANS={
@@ -3200,13 +3311,14 @@ function animalAct(i,ax,ay){
 /* ---- 야생 펫 포획 & 키우기 ---- */
 let cap={on:false};
 function activePetLv(){if(!S||S.activePet==null)return 0;const p=S.pets[S.activePet];return p?p.lv:0;}
-function petSpeedMul(){return activePetLv()>=5?1.12:1;}
-function petFishBonus(){return activePetLv()>=3?0.04:0;}
-function petRenownMul(){return activePetLv()>=7?1.3:1;}
+function petEvo(){const p2=S&&S.activePet!=null&&S.pets[S.activePet];return !!(p2&&p2.evo);}
+function petSpeedMul(){return activePetLv()>=5?(petEvo()?1.16:1.12):1;}
+function petFishBonus(){return activePetLv()>=3?(petEvo()?0.055:0.04):0;}
+function petRenownMul(){return activePetLv()>=7?(petEvo()?1.5:1.3):1;}
 function petForageBonus(){return (activePetLv()>=4&&Math.random()<0.35)?1:0;}
-function petTitle(lv){return lv>=10?'👑 왕실의 벗':lv>=7?'🌟 명예로운 벗':lv>=5?'💫 든든한 벗':lv>=4?'🍀 다정한 벗':lv>=2?'🌸 친한 벗':'🌱 새 친구';}
+function petTitle(lv,evo){return evo?'⭐ 전설의 벗':lv>=10?'👑 왕실의 벗':lv>=7?'🌟 명예로운 벗':lv>=5?'💫 든든한 벗':lv>=4?'🍀 다정한 벗':lv>=2?'🌸 친한 벗':'🌱 새 친구';}
 function petCoinBonus(){ // 채집·수확 때 가끔 코인
-  if(activePetLv()>=2&&Math.random()<0.5){const b=1+Math.floor(activePetLv()/3);S.coins+=b;updateHUD();return b;}
+  if(activePetLv()>=2&&Math.random()<0.5){let b=1+Math.floor(activePetLv()/3);if(petEvo())b*=2;S.coins+=b;updateHUD();return b;}
   return 0;
 }
 function petPerkList(lv){
@@ -3290,12 +3402,22 @@ function openPets(){
   }
   if(S.activePet!=null&&S.pets[S.activePet]){
     const lv=S.pets[S.activePet].lv;
-    html+='<div class="card" style="background:#fff6fb"><div style="font-size:14px;margin-bottom:4px">🎁 동행 친구 혜택 — <b>'+petTitle(lv)+'</b> (Lv.'+lv+')</div>';
+    const evoP=S.pets[S.activePet].evo;
+    html+='<div class="card" style="background:'+(evoP?'#fff8e0':'#fff6fb')+'"><div style="font-size:14px;margin-bottom:4px">🎁 동행 친구 혜택 — <b>'+petTitle(lv,evoP)+'</b> (Lv.'+lv+(evoP?' ⭐진화':'')+')</div>';
     petPerkList(lv).forEach(pk=>{
       const on=lv>=pk[0];
       html+='<div class="small" style="color:'+(on?'#2e9e6b':'#c3b3bd')+';margin:2px 0">'
         +(on?'✅ ':'🔒 Lv.'+pk[0]+' — ')+pk[1]+'</div>';
     });
+    if(evoP)html+='<div class="small" style="color:#c98a2a;margin:2px 0">⭐ 진화: 코인 2배 · 이동/낚시/명성 혜택 강화!</div>';
+    if(!evoP&&lv>=10){
+      const canEvo=inv('gem')>=2&&S.coins>=300;
+      html+='<div style="margin-top:6px;padding-top:6px;border-top:1.5px dashed #f0d8e4">'
+        +'<div class="small" style="margin-bottom:4px">⭐ <b>진화 가능!</b> 재료: 💎 보석 2 (보유 '+inv('gem')+') + 🪙 300</div>'
+        +'<button class="pillbtn'+(canEvo?' mint':' gray')+'" id="petevo" style="width:100%">⭐ 진화하기</button></div>';
+    }else if(!evoP){
+      html+='<div class="small" style="color:#a98;margin-top:4px">Lv.10이 되면 💎보석으로 진화할 수 있어요!</div>';
+    }
     html+='</div>';
   }
   const allK=Object.keys(PETSPEC), gotN=allK.filter(k=>S.dex[k]).length;
@@ -3310,6 +3432,16 @@ function openPets(){
   }
   html+='</div><div class="small" style="text-align:center;margin-top:8px">동행 친구는 부탁을 도울 때마다 함께 자라요!</div>';
   openModal('🐾 나의 동물 친구',html);
+  const pev=$('petevo');
+  if(pev)pev.addEventListener('pointerdown',()=>{
+    const pt2=S.pets[S.activePet];
+    if(!pt2||pt2.lv<10||pt2.evo)return;
+    if(inv('gem')<2||S.coins<300){toast('💎 보석 2개와 🪙 300이 필요해요!');sNo();return;}
+    addInv('gem',-2); S.coins-=300; pt2.evo=true;
+    sLevel(); confetti(45);
+    banner('⭐ 진화!','전설의 벗이 되었어요!');
+    updateHUD(); saveGame(); openPets();
+  });
   mbody.querySelectorAll('[data-sel]').forEach(b=>b.addEventListener('pointerdown',()=>{
     S.activePet=+b.dataset.sel;sYes();saveGame();openPets();}));
   mbody.querySelectorAll('[data-feed]').forEach(b=>b.addEventListener('pointerdown',()=>{
@@ -3448,6 +3580,29 @@ function drawBuff(){
   if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,24,12);ctx.fill();}else ctx.fillRect(x,y,w,24);
   ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,W/2,y+12);ctx.textBaseline='alphabetic';
 }
+function openElf(){
+  if(!S.met.elf){
+    S.met.elf=true; saveGame(); confetti(30); sLevel();
+    banner('🧝 새로운 종족!','엘프 친구를 만났어요');
+    dialog(ELF.e,ELF.n,['별빛이 이끄는 대로 왔군요, {P} 공주님.','저는 숲과 별을 지키는 엘프, 아리엘라예요.','가끔 들르면 자연의 축복을 나눠 드릴게요 🍃'],
+      [{label:'만나서 반가워요! 🧝',fn:()=>{applyReward({coins:30,stats:{wis:2,kind:1},xp:20});}}]);
+    return;
+  }
+  if(now()-(S.elfAt||0)<120000){
+    dialog(ELF.e,ELF.n,['바람이 아직 축복을 모으고 있어요…','잠시 후 다시 와 주세요 🍃']); return;
+  }
+  dialog(ELF.e,ELF.n,['자연의 축복을 받아 볼래요?'],[
+    {label:'축복 받기 🍃',fn:()=>{
+      S.elfAt=now();
+      const bs=['speed','luck','renown','charm','yield'];
+      const b=bs[Math.floor(Math.random()*bs.length)];
+      S.buff={type:b,until:now()+(75+cookDurBonus())*1000};
+      sYes(); confetti(14);
+      banner(BUFFS[b].e+' '+BUFFS[b].n,'엘프의 축복! '+BUFFS[b].desc);
+      petXpGain(3); saveGame();
+    }},
+    {label:'다음에요',gray:true}]);
+}
 function drawGarden(){
   const ox=-cam.x, oy=-cam.y;
   const sky=ctx.createLinearGradient(0,0,0,H);
@@ -3477,6 +3632,14 @@ function drawGarden(){
   for(let i=0;i<12;i++){const bx=gx+gw*0.15+Math.sin(T*1.2+i*1.7)*gw*0.35+gw*0.35*(i%3)/3, by=gy+TILE*2.2+((i*61)%Math.max(1,(gh-TILE*3.5)))+Math.sin(T*2+i)*6;
     ctx.globalAlpha=.5+Math.sin(T*4+i)*.4;ctx.fillStyle='#eaff9a';ctx.beginPath();ctx.arc(bx,by,2.4,0,7);ctx.fill();}
   ctx.globalAlpha=1;
+  // 엘프 아리엘라
+  {const eb=Math.sin(T*2.1)*2.5;
+   drawEmoji(ELF.e,ELF.px,ELF.py+eb,32,13);
+   const x=ELF.px-cam.x,y=ELF.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#d8f0e0';ctx.textAlign='center';ctx.fillText(ELF.n,x,y+21);
+   if(!S.met.elf){const by=y-36+Math.sin(T*3)*2.5;
+     ctx.fillStyle='#fffdf8';ctx.beginPath();ctx.arc(x,by,11,0,7);ctx.fill();
+     ctx.font='13px serif';ctx.fillStyle='#000';ctx.fillText('❗',x,by+4);}}
   const sBob=Math.sin(T*2)*3;
   drawEmoji(STARNPC.e,STARNPC.px,STARNPC.py+sBob,34,14);
   {const x=STARNPC.px-cam.x,y=STARNPC.py-cam.y;
@@ -3502,7 +3665,8 @@ function drawPortal(){
 /* ============ 내 방 꾸미기 (걸어다니는 공간) ============ */
 const RPC=5, RPR=3; // 가구 배치 격자 (열×행) — 큼직한 칸
 function cellX(gx){return (0.5+(+gx+0.5)*((RW-1)/RPC))*TILE;}
-function cellY(gy){return (2.05+(+gy+0.82)*((RH-2.5)/RPR))*TILE;}
+function cellY(gy){return [2.64,4.22,5.88][+gy]*TILE;}
+function rowScale(gy){return [0.84,1.0,1.16][+gy]||1;}
 function enterRoom(){ if(uiOpen>0)return; world='room'; player.x=RW/2*TILE; player.y=(RH-1.5)*TILE; sYes(); toast('🛏️ 내 방에 왔어요! 🎨 이젤에서 꾸며 봐요'); }
 function exitRoom(){ world='out'; player.x=CASTLE.x+CASTLE.w/2; player.y=CASTLE.y+CASTLE.h+30; sTap(); toast('🌳 밖으로 나왔어요'); }
 function blockedRoom(px,py){
@@ -3597,12 +3761,13 @@ function drawRoom(){
   for(const key in S.room){
     const p=key.split(','), gx=+p[0], gy=+p[1], f=FURN[S.room[key]];
     if(!f)continue;
-    items.push({wx:cellX(gx), wy:cellY(gy), f, gx});
+    items.push({wx:cellX(gx), wy:cellY(gy), f, gx, gy});
   }
   items.sort((a,b)=>a.wy-b.wy).forEach(it=>{
     const bob=it.f.bob?Math.sin(T*2+it.gx)*3:0;
-    const sh=it.f.flat?4:Math.max(10,Math.round((it.f.sz||28)*0.2));
-    drawEmoji(it.f.e,it.wx,it.wy+(it.f.flat?3:0)-bob,it.f.sz||28,sh);
+    const sc=rowScale(it.gy!=null?it.gy:1), sz=Math.round((it.f.sz||28)*sc);
+    const sh=it.f.flat?4:Math.max(9,Math.round(sz*0.2));
+    drawEmoji(it.f.e,it.wx,it.wy+(it.f.flat?3:0)-bob,sz,sh);
   });
   // 이젤(꾸미기)
   drawEmoji(ROOMEDIT.e,ROOMEDIT.px,ROOMEDIT.py+Math.sin(T*2)*1.5,30,12);
@@ -3702,6 +3867,135 @@ function openPortLocal(){
   const cnt=Object.keys(S.stamps).length;
   dialog('🧒','항구 친구',[LOCALTIPS[Math.floor(Math.random()*LOCALTIPS.length)],'📖 여행 스탬프: '+cnt+' / '+total]);
 }
+/* ============ 반짝 광산 (드워프 종족) ============ */
+function enterMine(){
+  world='mine'; player.x=MW/2*TILE; player.y=(MH-1.6)*TILE;
+  sYes(); toast('⛏️ 반짝 광산에 들어왔어요!');
+  if(!S.met.dwarf)setTimeout(()=>toast('🧔 안쪽에 누군가 있어요…'),900);
+}
+function exitMine(){
+  world='out'; player.x=MINEGATE.px; player.y=MINEGATE.py+46;
+  sTap(); toast('🌲 광산 밖으로 나왔어요');
+}
+function blockedMine(px,py){
+  if(px<TILE*0.8||px>MW*TILE-TILE*0.8)return true;
+  if(py<TILE*2.2||py>(MH-0.5)*TILE)return true;
+  return false;
+}
+function mineHit(i){
+  if(now()<mineUntil[i])return;
+  mineHp[i]--; sTap(); spark(MINENODES[i].px,MINENODES[i].py-14,'✨');
+  if(mineHp[i]>0){toast('⛏️ 캉! ('+(3-mineHp[i])+'/3)');return;}
+  mineUntil[i]=now()+40000; mineHp[i]=3;
+  const r=Math.random(); let k;
+  if(r<0.52)k='stoneOre'; else if(r<0.82)k='ironOre'; else if(r<0.97)k='crystalOre'; else k='gem';
+  addInv(k,1); addXp(3); petXpGain(2); sYes(); confetti(8);
+  toast(META[k].i+' '+META[k].n+' 획득!'+(k==='gem'?' 🎉 귀한 보석!':''));
+  saveGame();
+}
+function openDwarf(){
+  if(!S.met.dwarf){
+    S.met.dwarf=true; saveGame(); confetti(30); sLevel();
+    banner('⛏️ 새로운 종족!','드워프 친구를 만났어요');
+    dialog(DWARF.e,DWARF.n,['오호, 여기까지 온 인간 공주는 처음이구먼!','나는 드워프 토르린. 대대로 보석을 다듬어 왔지.','🔮 수정 원석 3개 + ⚙️ 철 원석 2개를 가져오면 💎 빛나는 보석으로 만들어 주겠네!'],
+      [{label:'반가워요! ⛏️',fn:()=>{applyReward({coins:30,stats:{wis:2},xp:20});}}]);
+    return;
+  }
+  let html='<div class="card rowline"><div style="font-size:30px">🧔</div><div class="grow"><b>'+DWARF.n+'</b><div class="small">"좋은 원석은 정직한 땀에서 나오는 법!"</div></div></div>';
+  html+='<div class="small" style="margin:8px 4px 4px">⚒️ 보석 가공</div>';
+  const can=inv('crystalOre')>=3&&inv('ironOre')>=2;
+  html+='<div class="card rowline"><div style="font-size:26px">💎</div>'
+    +'<div class="grow"><div>빛나는 보석 만들기</div><div class="small" style="color:'+(can?'#59c97b':'#c08a8a')+'">🔮 수정 원석 3 (보유 '+inv('crystalOre')+') + ⚙️ 철 원석 2 (보유 '+inv('ironOre')+')</div></div>'
+    +'<button class="pillbtn'+(can?' mint':' gray')+'" id="dwcraft">가공</button></div>';
+  html+='<div class="small" style="margin:8px 4px 4px">🪙 광석 팔기</div>';
+  for(const k of ['stoneOre','ironOre','crystalOre','gem']){
+    const c=inv(k); if(c<=0)continue;
+    const pr=Math.round(META[k].sell*sellMul()*coinMul());
+    html+='<div class="card rowline"><div style="font-size:22px">'+META[k].i+'</div>'
+      +'<div class="grow"><div>'+META[k].n+' ×'+c+'</div><div class="small">개당 🪙'+pr+'</div></div>'
+      +'<button class="pillbtn" data-dwsell="'+k+'">전부 팔기</button></div>';
+  }
+  html+='<div class="small" style="text-align:center;margin-top:6px">💎 보석은 날개·펫 진화에도 쓰여요 · 내 코인: 🪙 '+S.coins+'</div>';
+  openModal('⚒️ 드워프 대장간',html);
+  const dc=$('dwcraft');
+  if(dc)dc.addEventListener('pointerdown',()=>{
+    if(!(inv('crystalOre')>=3&&inv('ironOre')>=2)){toast('🔮 원석이 부족해요!');sNo();return;}
+    addInv('crystalOre',-3);addInv('ironOre',-2);addInv('gem',1);
+    sLevel();confetti(20);spark(player.x,player.y-30,'💎');
+    toast('💎 빛나는 보석 완성!');applyReward({xp:15});saveGame();openDwarf();
+  });
+  mbody.querySelectorAll('[data-dwsell]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.dwsell, c=inv(k); if(c<=0)return;
+    const got=Math.round(META[k].sell*sellMul()*coinMul())*c;
+    addInv(k,-c); S.coins+=got; sCoin(); toast('🪙 +'+got); updateHUD(); saveGame(); openDwarf();
+  }));
+}
+function drawMineGate(){
+  if(!S)return;
+  const x=MINEGATE.px-cam.x,y=MINEGATE.py-cam.y;
+  if(x<-70||x>W+70||y<-80||y>H+70)return;
+  ctx.fillStyle='#6f6355';ctx.beginPath();ctx.moveTo(x-30,y+22);ctx.lineTo(x-24,y-16);ctx.quadraticCurveTo(x,y-34,x+24,y-16);ctx.lineTo(x+30,y+22);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#2b2233';ctx.beginPath();ctx.moveTo(x-14,y+22);ctx.lineTo(x-12,y-6);ctx.quadraticCurveTo(x,y-18,x+12,y-6);ctx.lineTo(x+14,y+22);ctx.closePath();ctx.fill();
+  ctx.font='15px serif';ctx.textAlign='center';ctx.fillText('⛏️',x,y-22);
+  const open=S.renown>=MINE_REN;
+  ctx.fillStyle='rgba(90,74,82,.85)';const lbl=open?'반짝 광산':'🔒 명성 '+MINE_REN, lw=ctx.measureText(lbl).width+14;
+  ctx.font='11px Jua, sans-serif';
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x-lw/2,y+26,lw,16,8);ctx.fill();}else ctx.fillRect(x-lw/2,y+26,lw,16);
+  ctx.fillStyle='#fff';ctx.fillText(lbl,x,y+38);
+  if(open){ctx.globalAlpha=.5+Math.sin(T*3)*.3;ctx.font='11px serif';ctx.fillText('✨',x+20,y-14);ctx.globalAlpha=1;}
+}
+function drawMine(){
+  const ox=-cam.x, oy=-cam.y, mw=MW*TILE, mh=MH*TILE;
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#241c2e');bg.addColorStop(1,'#3a2f45');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  // 동굴 바닥
+  ctx.fillStyle='#4d4258';ctx.fillRect(ox,oy+2*TILE,mw,mh-2*TILE);
+  ctx.fillStyle='rgba(0,0,0,.15)';
+  for(let i=0;i<26;i++){const rx=ox+((i*97)%mw), ry=oy+2.4*TILE+((i*53)%(mh-3*TILE));ctx.beginPath();ctx.ellipse(rx,ry,9,4,0,0,7);ctx.fill();}
+  // 천장 종유석
+  ctx.fillStyle='#332a40';
+  for(let i=0;i<10;i++){const sx=ox+(0.8+i*1.5)*TILE;
+    ctx.beginPath();ctx.moveTo(sx-14,oy+2*TILE);ctx.lineTo(sx+14,oy+2*TILE);ctx.lineTo(sx,oy+2*TILE+26+((i*29)%18));ctx.closePath();ctx.fill();}
+  // 벽 수정 반짝임
+  for(let i=0;i<14;i++){const cx2=ox+((i*131)%mw), cy2=oy+0.5*TILE+((i*67)%(1.4*TILE));
+    ctx.globalAlpha=.4+Math.sin(T*3+i)*.35;ctx.fillStyle=['#b48fff','#8fd3ff','#ffd970'][i%3];
+    ctx.beginPath();ctx.moveTo(cx2,cy2-5);ctx.lineTo(cx2+4,cy2);ctx.lineTo(cx2,cy2+5);ctx.lineTo(cx2-4,cy2);ctx.closePath();ctx.fill();}
+  ctx.globalAlpha=1;
+  // 랜턴
+  for(const lx of [2.2,7.5,12.8]){
+    const px2=ox+lx*TILE, py2=oy+2.15*TILE;
+    ctx.save();ctx.shadowColor='#ffce6b';ctx.shadowBlur=16;
+    ctx.font='20px serif';ctx.textAlign='center';ctx.fillText('🏮',px2,py2);ctx.restore();
+  }
+  // 광석 노드
+  MINENODES.forEach((o,i)=>{
+    const x=o.px-cam.x,y=o.py-cam.y;
+    if(now()<mineUntil[i]){
+      ctx.globalAlpha=.45;ctx.font='22px serif';ctx.textAlign='center';ctx.fillText('🪨',x,y+6);ctx.globalAlpha=1;
+      const left=Math.ceil((mineUntil[i]-now())/1000);
+      ctx.font='9px Jua, sans-serif';ctx.fillStyle='#9a8fb0';ctx.fillText(left+'초',x,y+20);
+    }else{
+      const bob=Math.sin(T*2+i)*1.5;
+      ctx.save();ctx.shadowColor='#b48fff';ctx.shadowBlur=10;
+      ctx.font='30px serif';ctx.textAlign='center';ctx.fillText(['🪨','🔮','🪨','⚙️','🔮','🪨'][i],x,y+8+bob);ctx.restore();
+      if(mineHp[i]<3){ctx.font='10px Jua, sans-serif';ctx.fillStyle='#ffd970';ctx.fillText('⛏️'+(3-mineHp[i])+'/3',x,y-18);}
+    }
+  });
+  // 드워프
+  const dbob=Math.sin(T*2.4)*2;
+  ctx.save();ctx.shadowColor='#ffce6b';ctx.shadowBlur=8;
+  ctx.font='32px serif';ctx.textAlign='center';ctx.fillText(DWARF.e,DWARF.px-cam.x,DWARF.py-cam.y+8+dbob);ctx.restore();
+  ctx.font='11px Jua, sans-serif';ctx.fillStyle='#e8ddf0';ctx.fillText(DWARF.n,DWARF.px-cam.x,DWARF.py-cam.y+24);
+  ctx.font='13px serif';ctx.fillText('⚒️',DWARF.px-cam.x+20,DWARF.py-cam.y-10);
+  if(!S.met.dwarf){const by=DWARF.py-cam.y-34+Math.sin(T*3)*2.5;
+    ctx.fillStyle='#fffdf8';ctx.beginPath();ctx.arc(DWARF.px-cam.x,by,11,0,7);ctx.fill();
+    ctx.font='13px serif';ctx.fillStyle='#000';ctx.fillText('❗',DWARF.px-cam.x,by+4);}
+  // 출구
+  const exX=ox+MW/2*TILE, exY=oy+(MH-0.55)*TILE;
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.ellipse(exX,exY,28,10,0,0,7);ctx.fill();
+  ctx.font='12px Jua, sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText('⬇ 나가기',exX,exY+2);
+}
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
   if(uiOpen>0)return;
@@ -3769,6 +4063,15 @@ function drawMini(){
     mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(rxm(player.x),rym(player.y),2.6,0,7);mm.fill();mm.stroke();
     return;
   }
+  if(world==='mine'){
+    mm.fillStyle='#3a2f45';mm.fillRect(4,6,112,80);
+    const sc=Math.min(112/(MW*TILE),80/(MH*TILE)), mxm=v=>4+v*sc, mym=v=>6+v*sc;
+    MINENODES.forEach((o,i)=>{mm.fillStyle=now()<mineUntil[i]?'#5a4f68':'#b48fff';
+      mm.beginPath();mm.arc(mxm(o.px),mym(o.py),2,0,7);mm.fill();});
+    mm.fillStyle='#ffce6b';mm.beginPath();mm.arc(mxm(DWARF.px),mym(DWARF.py),2.6,0,7);mm.fill();
+    mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(mxm(player.x),mym(player.y),2.6,0,7);mm.fill();mm.stroke();
+    return;
+  }
   if(world==='port'){
     const nt=nation();
     mm.fillStyle='#7ccaf2';mm.fillRect(4,6,112,80);
@@ -3809,13 +4112,14 @@ function drawMini(){
 let last=now(), tutoStep=0;
 function update(dt){
   T+=dt;
+  if(fadeDir!==0)return; // 화면 전환 중
   // 이동
   const canMove=uiOpen===0;
   let mvx=canMove?joy.dx:0, mvy=canMove?joy.dy:0;
   const len=Math.hypot(mvx,mvy);
   player.moving=len>0.15;
   if(player.moving){
-    const sp=player.spd*petSpeedMul()*buffSpeedMul()*Math.min(len,1)*dt;
+    const sp=player.spd*petSpeedMul()*buffSpeedMul()*lvSpeedMul()*Math.min(len,1)*dt;
     // 축 분리 이동
     const stepx=mvx/Math.max(len,0.001)*sp, stepy=mvy/Math.max(len,0.001)*sp;
     if(!blocked(player.x+stepx+Math.sign(stepx)*10,player.y))player.x+=stepx;
@@ -3829,14 +4133,17 @@ function update(dt){
   // 성문 드나들기 (정문=성 아래 중앙에서만, 위/옆으로 돌아가도 안 들어가요)
   if(world==='out'){
     const doorX=CASTLE.x+CASTLE.w/2, doorB=CASTLE.y+CASTLE.h;
-    if(Math.abs(player.x-doorX)<24 && player.y>doorB-30 && player.y<doorB+20)enterCastle();
-    if(S.starDone && Math.hypot(player.x-PORTAL.px,player.y-PORTAL.py)<40)enterGarden();
+    if(Math.abs(player.x-doorX)<24 && player.y>doorB-30 && player.y<doorB+20)warp(enterCastle);
+    if(S.starDone && Math.hypot(player.x-PORTAL.px,player.y-PORTAL.py)<40)warp(enterGarden);
+    if(S.renown>=MINE_REN && Math.hypot(player.x-MINEGATE.px,player.y-MINEGATE.py)<42)warp(enterMine);
   }else if(world==='in'){
-    if(player.y>(IH-1.35)*TILE&&Math.abs(player.x-10*TILE)<44)exitCastle();
+    if(player.y>(IH-1.35)*TILE&&Math.abs(player.x-10*TILE)<44)warp(exitCastle);
   }else if(world==='garden'){
-    if(player.y>(GH-1.1)*TILE&&Math.abs(player.x-GW/2*TILE)<54)exitGarden();
+    if(player.y>(GH-1.1)*TILE&&Math.abs(player.x-GW/2*TILE)<54)warp(exitGarden);
   }else if(world==='room'){
-    if(player.y>(RH-0.75)*TILE&&Math.abs(player.x-RW/2*TILE)<52)exitRoom();
+    if(player.y>(RH-0.75)*TILE&&Math.abs(player.x-RW/2*TILE)<52)warp(exitRoom);
+  }else if(world==='mine'){
+    if(player.y>(MH-0.85)*TILE&&Math.abs(player.x-MW/2*TILE)<54)warp(exitMine);
   }
   // 가축 생산 완료 체크
   S.animals.forEach(a=>{
@@ -3960,6 +4267,14 @@ function render(){
     drawMini();
     return;
   }
+  if(world==='mine'){
+    drawMine();
+    drawPetFollow();
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=p2.s+'px serif';ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
+    drawMini();
+    return;
+  }
   if(world==='garden'){
     drawGarden();
     drawPetFollow();
@@ -3983,6 +4298,7 @@ function render(){
   drawNpcs();
   drawRegionNpcs();
   drawPortal();
+  drawMineGate();
   drawCookpot();
   // 나비
   BFLIES.forEach(b=>{
@@ -4009,6 +4325,12 @@ function loop(){
   if(S)update(dt);
   if(S)render();
   if(S)drawBuff();
+  if(fadeDir!==0){
+    fadeV+=fadeDir*dt*3.4;
+    if(fadeV>=1){fadeV=1;if(fadePend){fadePend();fadePend=null;}fadeDir=-1;}
+    else if(fadeV<=0){fadeV=0;fadeDir=0;}
+  }
+  if(fadeV>0){ctx.fillStyle='rgba(255,246,251,'+fadeV.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
   requestAnimationFrame(loop);
 }
 
