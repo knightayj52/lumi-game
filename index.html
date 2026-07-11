@@ -392,6 +392,8 @@ const META={
   octo:{n:'문어',i:'🐙',sell:21}, dolphin:{n:'돌고래',i:'🐬',sell:42},
   rainbow:{n:'무지개어',i:'🌈',sell:72}, whale:{n:'흰고래',i:'🐋',sell:46},
   starfish:{n:'별빛물고기',i:'🌟',sell:85},
+  tang:{n:'열대어',i:'🐠',sell:30}, turtle:{n:'바다거북',i:'🐢',sell:55}, pearl:{n:'진주조개',i:'🦪',sell:62},
+  seal:{n:'꼬마물범',i:'🦭',sell:68}, moonfish:{n:'달빛가오리',i:'🌜',sell:74}, crystalfish:{n:'수정물고기',i:'💠',sell:115},
   carrotSoup:{n:'당근 수프',i:'🥣',sell:22},
   berryCake:{n:'딸기 케이크',i:'🍰',sell:40},
   mushGratin:{n:'버섯 그라탕',i:'🧀',sell:45},
@@ -405,6 +407,8 @@ const FISH={
   crab:{rar:1}, squid:{rar:1}, puffer:{rar:1}, octo:{rar:1},
   shark:{rar:2}, lobster:{rar:2}, dolphin:{rar:2}, whale:{rar:2},
   rainbow:{rar:3}, starfish:{rar:3},
+  tang:{rar:1}, turtle:{rar:2}, pearl:{rar:2},
+  seal:{rar:2}, moonfish:{rar:2}, crystalfish:{rar:3},
 };
 const FISHKEYS=Object.keys(FISH).concat(['f1','f2','f3','f4']);
 // 낚시터 4곳: 물가의 x위치로 결정
@@ -413,14 +417,17 @@ const FISHZONES={
   creek: {n:'목장 개울',   pool:['crucian','shrimp','puffer','crab','lobster']},
   lake:  {n:'신비한 호수', pool:['crucian','puffer','octo','squid','dolphin','rainbow']},
   ice:   {n:'얼음 바다',   pool:['puffer','octo','whale','dolphin','starfish']},
+  portA: {n:'이웃 왕국 항구', pool:['minnow','crab','tang','tang','turtle','pearl']},
+  portB: {n:'웅장한 왕국 항구', pool:['squid','octo','seal','moonfish','moonfish','crystalfish']},
 };
 const FRAR=[
-  {n:'일반',c:'#7fae55',zone:0.34,spd:2.6},
-  {n:'레어',c:'#4d9be6',zone:0.24,spd:3.4},
-  {n:'유니크',c:'#a86ae0',zone:0.155,spd:4.3},
-  {n:'전설',c:'#e6a817',zone:0.10,spd:5.2},
+  {n:'일반',c:'#7fae55',zone:0.26,spd:3.0},
+  {n:'레어',c:'#4d9be6',zone:0.185,spd:3.9},
+  {n:'유니크',c:'#a86ae0',zone:0.125,spd:4.9},
+  {n:'전설',c:'#e6a817',zone:0.08,spd:6.0},
 ];
 function fishZoneAt(){
+  if(world==='port')return nation().tier===1?'portB':'portA';
   const tx=player.x/TILE;
   if(tx>=GATE3_X)return 'ice';
   if(tx>=GATE2_X)return 'lake';
@@ -497,6 +504,7 @@ const ACCS={
   butterfly:{n:'나비 핀',charm:4,buy:120,emoji:'🦋'},
   gem:{n:'보석 관',charm:5,buy:180,emoji:'💎'},
   starcrown:{n:'별빛 화관',charm:6,how:'무지개 별 조각 모으기',emoji:'🌟'},
+  medal:{n:'여행자 훈장',charm:7,how:'일곱 왕국 스탬프 모으기',emoji:'🎖️'},
 };
 const STATN={charm:{n:'매력',e:'💖',c:'#ff8fb8'},wis:{n:'지혜',e:'📖',c:'#8fb8ff'},
   kind:{n:'친절',e:'🌷',c:'#7ed6a5'},lead:{n:'리더십',e:'👑',c:'#ffc94d'}};
@@ -913,10 +921,10 @@ function drawSpriteAt(sp,wx,wy,size){
   drawCreature(ctx,PETSPEC[sp],x,y,size);
 }
 const RARN=[
-  {n:'일반',c:'#8fa3ad',zone:0.34,spd:1.0},
-  {n:'레어',c:'#4d9be6',zone:0.24,spd:1.3},
-  {n:'유니크',c:'#a86ae0',zone:0.16,spd:1.6},
-  {n:'전설',c:'#e6a817',zone:0.10,spd:2.0},
+  {n:'일반',c:'#8fa3ad',zone:0.27,spd:1.25},
+  {n:'레어',c:'#4d9be6',zone:0.19,spd:1.55},
+  {n:'유니크',c:'#a86ae0',zone:0.13,spd:1.9},
+  {n:'전설',c:'#e6a817',zone:0.085,spd:2.35},
 ];
 const WILD_ZONE={x0:OX+53,x1:OX+60.8,y0:OY+4.5,y1:OY+21.5};
 const SNOW_WILD={x0:OX+63.5,x1:OX+82.5,y0:OY+4.5,y1:OY+21.5};
@@ -1053,6 +1061,7 @@ function freshState(){return{
   buff:null, cookdex:{},
   room:{}, roomOwned:['bed','rug'], portAt:null,
   roomWall:{}, roomDeco:{wall:'pink',floor:'wood'}, ownedWalls:['pink'], ownedFloors:['wood'],
+  stamps:{},
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1123,6 +1132,7 @@ function applyLoaded(d){
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
   if(!S.roomWall)S.roomWall={}; if(!S.roomDeco)S.roomDeco={wall:'pink',floor:'wood'};
   if(!S.ownedWalls)S.ownedWalls=['pink']; if(!S.ownedFloors)S.ownedFloors=['wood'];
+  if(!S.stamps)S.stamps={};
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
     const nt=NATIONS.find(x=>x.id===S.portAt);
@@ -1245,6 +1255,9 @@ function findNearest(){
     if(d1<76)consider(d1,{type:'porttrade'});
     const d2=Math.hypot(player.x-PSHIP.px,player.y-PSHIP.py);
     if(d2<76)consider(d2,{type:'porthome'});
+    const d3=Math.hypot(player.x-PLOCAL.px,player.y-PLOCAL.py);
+    if(d3<70)consider(d3,{type:'portlocal'});
+    if(player.y<6.45*TILE&&Math.abs(player.x-PSHIP.px)>60)consider(56,{type:'fish'});
     nearest=best; return;
   }
   if(curRank()>=2){
@@ -1300,6 +1313,7 @@ function updateActBtn(){
     else if(nearest.type==='roomedit'){ic='🎨';lb='꾸미기';}
     else if(nearest.type==='porttrade'){ic=nation().e;lb='무역하기';}
     else if(nearest.type==='porthome'){ic='⛵';lb='귀항하기';}
+    else if(nearest.type==='portlocal'){ic='🧒';lb='말하기';}
     else if(nearest.type==='human'){ic=HUMANS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='mumu'){ic=MUMU.e;lb='말하기';}
     else if(nearest.type==='trade'){ic=curVisitor().e;lb='무역하기';}
@@ -1327,6 +1341,7 @@ function doAction(){
   else if(nearest.type==='starnpc')openStarSpirit();
   else if(nearest.type==='roomedit')openRoomEditor();
   else if(nearest.type==='porttrade'){tradeTab='sell';openTrade();}
+  else if(nearest.type==='portlocal')openPortLocal();
   else if(nearest.type==='porthome'){
     dialog('⛵','무역선',['우리 왕국으로 돌아갈까요?'],[
       {label:'집으로 출항! ⛵',fn:()=>exitPort()},
@@ -1424,7 +1439,7 @@ function openFishing(){
 function startTiming(){
   const rr=FRAR[FISH[fish.fk].rar];
   fish.phase='time'; fish.t0=now(); fish.pos=0.5;
-  fish.zh=Math.min(0.48,rr.zone+petFishBonus()+buffFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
+  fish.zh=Math.min(0.42,rr.zone+petFishBonus()+buffFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
   // 전설은 2번 연속 성공해야 잡혀요
   fish.need=FISH[fish.fk].rar>=3?2:1;
   fzone.style.display='block';
@@ -1846,7 +1861,13 @@ $('capbtn').addEventListener('pointerdown',()=>{
   if(!cap.on)return; audio();
   const my=(6+cap.pos*88)/100;
   if(my>=cap.zy-0.02&&my<=cap.zy+cap.zh+0.02){
-    catchPet();
+    cap.got++;
+    if(cap.got>=cap.need){catchPet();return;}
+    sYes();
+    $('capres').textContent='💞 마음이 전해지고 있어요! ('+cap.got+'/'+cap.need+')';
+    cap.spd*=1.18;
+    cap.zy=0.08+Math.random()*(0.84-cap.zh);
+    $('capzone').style.top=(cap.zy*100)+'%';
   }else{
     cap.tries--;sNo();updateCapHearts();
     $('capres').textContent='앗! 살짝 놀랐어요 💦';
@@ -2895,6 +2916,7 @@ function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:
 function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:world==='port'?PH:MAP_H)*TILE;}
 const PSTALL={tx:4,ty:6.7}; PSTALL.px=PSTALL.tx*TILE+24; PSTALL.py=PSTALL.ty*TILE+24;
 const PSHIP={tx:12.5,ty:6.1}; PSHIP.px=PSHIP.tx*TILE+24; PSHIP.py=PSHIP.ty*TILE+24;
+const PLOCAL={tx:9.6,ty:7.8}; PLOCAL.px=PLOCAL.tx*TILE+24; PLOCAL.py=PLOCAL.ty*TILE+24;
 const ROOMEDIT={e:'🎨',n:'꾸미기',tx:7.6,ty:4.9}; ROOMEDIT.px=ROOMEDIT.tx*TILE+24; ROOMEDIT.py=ROOMEDIT.ty*TILE+30;
 const PORTAL={tx:OX+20,ty:2}; PORTAL.px=PORTAL.tx*TILE+24; PORTAL.py=PORTAL.ty*TILE+24;
 const STARNPC={e:'🌟',n:'별의 정령',px:GW/2*TILE,py:5*TILE+24};
@@ -3142,14 +3164,14 @@ function petXpGain(nx){
 function openCapture(wi){
   const wp=wilds[wi]; if(!wp||cap.on)return;
   const spec=PETSPEC[wp.sp], rr=RARN[spec.rar];
-  cap={on:true,wp,sp:wp.sp,tries:3,pos:0.5,dir:1,spd:rr.spd,zh:rr.zone};
+  cap={on:true,wp,sp:wp.sp,tries:3,pos:0.5,dir:1,spd:rr.spd,zh:rr.zone,need:(spec.rar>=2?3:2),got:0};
   cap.zy=0.08+Math.random()*(0.84-cap.zh);
   uiOpen++;
   $('capture').style.display='flex';
   $('capemo').innerHTML=spriteImg(wp.sp,80);
   $('capname').textContent='야생의 '+spec.n;
   $('caprar').innerHTML='등급: <b style="color:'+rr.c+'">'+rr.n+'</b>';
-  $('capres').textContent='💖가 색깔 칸에 왔을 때 눌러요!';
+  $('capres').textContent='💖가 색깔 칸에 오면 눌러요! (성공 '+cap.need+'번 필요)';
   updateCapHearts();
   const z=$('capzone');
   z.style.top=(cap.zy*100)+'%';z.style.height=(cap.zh*100)+'%';z.style.background=rr.c+'b0';
@@ -3465,6 +3487,96 @@ function drawRoom(){
   const exX=ox+RW/2*TILE, exY=oy+(RH-0.55)*TILE;
   ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('🚪',exX,exY);
   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#7a5c40';ctx.fillText('⬇ 나가기',exX,exY-26);
+}
+/* ============ 다른 왕국 항구 (걸어다니는 지역) ============ */
+function enterPort(nt){
+  world='port'; activeNation=nt; tradeTab='sell';
+  player.x=PW/2*TILE; player.y=8*TILE;
+  S.portAt=nt.id; saveGame(); sYes();
+  banner('⛵ '+nt.e+' '+nt.n+'에 도착!','항구를 자유롭게 둘러봐요');
+}
+function exitPort(){
+  world='out'; activeNation=null; S.portAt=null;
+  player.x=TRADER.px; player.y=(SEA_TOP-0.6)*TILE;
+  saveGame(); sTap(); toast('🏠 우리 왕국에 돌아왔어요');
+}
+function blockedPort(px,py){
+  if(px<TILE*0.7||px>PW*TILE-TILE*0.7)return true;
+  if(py<TILE*5.6||py>(PH-0.4)*TILE)return true;
+  return false;
+}
+function drawPortWalk(){
+  const nt=nation(), ox=-cam.x, oy=-cam.y;
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,shade(nt.c,60));sky.addColorStop(.5,shade(nt.c,95));sky.addColorStop(1,'#dff2ff');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(W*0.82,H*0.13,36,0,7);ctx.fill();
+  const hz=3.1*TILE+oy;
+  ctx.fillStyle=shade(nt.c,-8);
+  for(let i=0;i<8;i++){const bx=(1.2+i*1.9)*TILE+ox, bw=1.15*TILE, bh=(0.9+((i*37)%5)*0.28)*TILE;
+    ctx.fillRect(bx-bw/2,hz-bh,bw,bh);
+    ctx.beginPath();ctx.moveTo(bx-bw/2-5,hz-bh);ctx.lineTo(bx+bw/2+5,hz-bh);ctx.lineTo(bx,hz-bh-24);ctx.closePath();ctx.fill();}
+  ctx.font='52px serif';ctx.textAlign='center';
+  ctx.fillText(nt.e,8*TILE+ox,hz-2.0*TILE+Math.sin(T*1.5)*4);
+  const plazaY=5.3*TILE+oy;
+  const sea=ctx.createLinearGradient(0,hz,0,plazaY);
+  sea.addColorStop(0,'#7ccaf2');sea.addColorStop(1,'#3f9fd9');
+  ctx.fillStyle=sea;ctx.fillRect(ox,hz,PW*TILE,plazaY-hz);
+  ctx.fillStyle='rgba(255,255,255,.3)';
+  for(let i=0;i<4;i++){const wy=hz+(i+1)*((plazaY-hz)/5);ctx.fillRect(ox,wy+Math.sin(T*2+i)*2,PW*TILE,2);}
+  ctx.fillStyle='#e7d9c3';ctx.fillRect(ox,plazaY,PW*TILE,PH*TILE-(plazaY-oy));
+  ctx.strokeStyle='rgba(150,120,90,.18)';ctx.lineWidth=1;
+  for(let y=5.3;y<PH;y+=0.9){ctx.beginPath();ctx.moveTo(ox,y*TILE+oy);ctx.lineTo(ox+PW*TILE,y*TILE+oy);ctx.stroke();}
+  for(let x=0;x<=PW;x+=1.2){ctx.beginPath();ctx.moveTo(x*TILE+ox,plazaY);ctx.lineTo(x*TILE+ox,PH*TILE+oy);ctx.stroke();}
+  ctx.fillStyle='#b98d5f';ctx.fillRect(ox,plazaY-6,PW*TILE,8);
+  ctx.font='12px Jua, sans-serif';ctx.fillStyle='#4a6a8a';ctx.textAlign='center';
+  ctx.fillText('🎣 낚시 명소 — 여기서만 잡히는 물고기!',5.2*TILE+ox,4.95*TILE+oy);
+  drawEmoji('⛵',PSHIP.px,4.85*TILE,50,0);
+  {const x=PSHIP.px-cam.x,y=PSHIP.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('⛵ 우리 왕국으로',x,y+18);}
+  drawEmoji('🏪',PSTALL.px,PSTALL.py,38,14);
+  drawEmoji(nt.e,PSTALL.px,PSTALL.py-42+Math.sin(T*2)*2,20,0);
+  {const x=PSTALL.px-cam.x,y=PSTALL.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText(nt.n+' 상점',x,y+22);
+   const reqAvail=!reqDone(nt);
+   if(reqAvail){const by=y-52+Math.sin(T*3)*2.5;ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
+     ctx.beginPath();ctx.arc(x,by,11,0,7);ctx.fill();ctx.stroke();ctx.font='12px serif';ctx.fillText('📜',x,by+4);}}
+  {const bob=Math.sin(T*2.2)*2;
+   drawEmoji('🧒',PLOCAL.px,PLOCAL.py+bob,32,13);
+   const x=PLOCAL.px-cam.x,y=PLOCAL.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('항구 친구',x,y+20);
+   if(!S.stamps[nt.id]){const by=y-38+Math.sin(T*3)*2.5;
+     ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
+     ctx.beginPath();ctx.arc(x,by,11,0,7);ctx.fill();ctx.stroke();
+     ctx.font='13px serif';ctx.fillText('❗',x,by+4);}}
+  drawEmoji('📦',7.2*TILE,6.3*TILE,24,10);
+  drawEmoji('🏮',1.6*TILE,6.0*TILE,24,10);
+  drawEmoji('🏮',14.4*TILE,6.0*TILE,24,10);
+  drawEmoji('🌴',1.4*TILE,8.9*TILE,30,12);
+  drawEmoji('🌴',14.6*TILE,8.9*TILE,30,12);
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  const label=nt.e+' '+nt.n+' 항구';
+  ctx.font='16px Jua, sans-serif';const lw=ctx.measureText(label).width+28;
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(W/2-lw/2,10,lw,30,15);ctx.fill();}else ctx.fillRect(W/2-lw/2,10,lw,30);
+  ctx.fillStyle=nt.c;ctx.textAlign='center';ctx.fillText(label,W/2,31);
+}
+function openPortLocal(){
+  const nt=nation(), total=NATIONS.length;
+  const LOCALTIPS=['우리 항구 물고기는 다른 곳엔 없어요! 🎣','상점 의뢰를 하면 특별한 선물을 줘요 📜','부두 난간에서 낚시해 봐요!','우리 왕국 하늘 색이 제일 예쁘죠? ✨'];
+  if(!S.stamps[nt.id]){
+    S.stamps[nt.id]=true;
+    const cnt=Object.keys(S.stamps).length;
+    applyReward({coins:25,stats:{lead:1},xp:15}); addRenown(5); confetti(16); sYes();
+    const done=cnt>=total&&!S.owned.accs.includes('medal');
+    dialog('🧒','항구 친구',['어서 와요, {P} 공주님! '+nt.n+'에 온 걸 환영해요!','기념으로 여행 스탬프를 찍어 드릴게요! '+nt.e,'📖 여행 스탬프: '+cnt+' / '+total],
+      [{label:'고마워요! ✨',fn:()=>{
+        if(done){grantItem('acc_medal');confetti(40);sLevel();
+          banner('🎖️ 일곱 왕국 스탬프 완성!','여행자 훈장을 얻었어요!');}
+        saveGame();}}]);
+    return;
+  }
+  const cnt=Object.keys(S.stamps).length;
+  dialog('🧒','항구 친구',[LOCALTIPS[Math.floor(Math.random()*LOCALTIPS.length)],'📖 여행 스탬프: '+cnt+' / '+total]);
 }
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
