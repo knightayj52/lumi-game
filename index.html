@@ -719,14 +719,29 @@ const RECIPES={
   royalFeast:{buff:'renown',dur:180, need:{pumpkin:1,fishAny:1,milk:1}},
 };
 const FURN={
-  bed:{n:'침대',e:'🛏️',cost:0}, rug:{n:'러그',e:'🟪',cost:0},
-  plant:{n:'화분',e:'🪴',cost:25}, painting:{n:'액자',e:'🖼️',cost:35},
-  teatable:{n:'티테이블',e:'🫖',cost:40}, teddy:{n:'곰인형',e:'🧸',cost:30},
-  lamp:{n:'램프',e:'🪔',cost:28}, books:{n:'책장',e:'📚',cost:45},
-  mirror:{n:'거울',e:'🪞',cost:35}, cake:{n:'케이크',e:'🎂',cost:30},
-  balloon:{n:'풍선',e:'🎈',cost:20}, vase:{n:'꽃병',e:'💐',cost:25},
-  clock:{n:'시계',e:'🕰️',cost:40}, cushion:{n:'고양이 쿠션',e:'🐈',cost:35},
-  star:{n:'별 조명',e:'⭐',cost:50}, gift:{n:'선물상자',e:'🎁',cost:22},
+  bed:{n:'침대',e:'🛏️',cost:0,sz:48}, rug:{n:'러그',e:'🟪',cost:0,sz:44,flat:true},
+  plant:{n:'화분',e:'🪴',cost:25,sz:30}, teatable:{n:'티테이블',e:'🫖',cost:40,sz:32},
+  teddy:{n:'곰인형',e:'🧸',cost:30,sz:28}, lamp:{n:'램프',e:'🪔',cost:28,sz:24},
+  books:{n:'책장',e:'📚',cost:45,sz:38}, cake:{n:'케이크',e:'🎂',cost:30,sz:24},
+  balloon:{n:'풍선',e:'🎈',cost:20,sz:30,bob:true}, vase:{n:'꽃병',e:'💐',cost:25,sz:26},
+  cushion:{n:'고양이 쿠션',e:'🐈',cost:35,sz:28}, gift:{n:'선물상자',e:'🎁',cost:22,sz:24},
+  piano:{n:'피아노',e:'🎹',cost:70,sz:42},
+  painting:{n:'액자',e:'🖼️',cost:35,sz:30,wall:true}, mirror:{n:'거울',e:'🪞',cost:35,sz:28,wall:true},
+  clock:{n:'시계',e:'🕰️',cost:40,sz:22,wall:true}, star:{n:'별 조명',e:'⭐',cost:50,sz:22,wall:true,bob:true},
+  garland:{n:'리본 가랜드',e:'🎀',cost:30,sz:24,wall:true}, wreath:{n:'꽃 리스',e:'🌸',cost:28,sz:24,wall:true},
+};
+const WALLS={
+  pink:{n:'분홍 꽃무늬',c1:'#f2dcec',c2:'#e6c4dc',motif:'🌸',cost:0},
+  mint:{n:'민트 줄무늬',c1:'#ddf2e6',c2:'#c2e6d2',cost:40},
+  sky:{n:'하늘 구름',c1:'#e0f0fb',c2:'#cde6f7',motif:'☁️',cost:40},
+  lavender:{n:'라벤더 별밤',c1:'#eae0f6',c2:'#d8c8ee',motif:'⭐',cost:50},
+  lemon:{n:'레몬 상큼',c1:'#faf3d8',c2:'#f2e6b4',motif:'🍋',cost:40},
+};
+const FLOORS={
+  wood:{n:'나무 바닥',c:'#e8c9a0',line:'rgba(150,110,70,.18)',cost:0},
+  pinkw:{n:'분홍 마루',c:'#f4d8e0',line:'rgba(200,130,160,.25)',cost:40},
+  checker:{n:'체크 바닥',c:'#efe6d8',c2:'#e0d0b6',cost:50},
+  carpet:{n:'보라 카펫',c:'#dccbf0',line:'rgba(140,110,180,.22)',cost:60},
 };
 const COOKPOT={e:'🍳',n:'요리솥',tx:OX+23,ty:OY+9.5};
 COOKPOT.px=COOKPOT.tx*TILE+24; COOKPOT.py=COOKPOT.ty*TILE+30;
@@ -1037,6 +1052,7 @@ function freshState(){return{
   starStep:0, starOn:false, starDone:false,
   buff:null, cookdex:{},
   room:{}, roomOwned:['bed','rug'], portAt:null,
+  roomWall:{}, roomDeco:{wall:'pink',floor:'wood'}, ownedWalls:['pink'], ownedFloors:['wood'],
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1105,6 +1121,8 @@ function applyLoaded(d){
   if(!S.owned.shoes)S.owned.shoes=['pink'];
   S.buff=null; if(!S.cookdex)S.cookdex={};
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
+  if(!S.roomWall)S.roomWall={}; if(!S.roomDeco)S.roomDeco={wall:'pink',floor:'wood'};
+  if(!S.ownedWalls)S.ownedWalls=['pink']; if(!S.ownedFloors)S.ownedFloors=['wood'];
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
     const nt=NATIONS.find(x=>x.id===S.portAt);
@@ -2030,38 +2048,81 @@ function openCookpot(){
   }));
 }
 /* ============ 내 방 꾸미기 UI ============ */
-let roomSel='bed', roomErase=false;
+let roomSel='bed', roomErase=false, roomTab='floor';
 function openRoomEditor(){
-  if(!S.roomOwned.includes(roomSel))roomSel=S.roomOwned[0]||'bed';
-  let html='<div class="small" style="text-align:center;margin-bottom:6px">가구를 고르고 칸을 눌러 놓아요! 🧹 지우개로 치울 수 있어요</div>';
-  html+='<div style="margin-bottom:6px">';
-  html+='<button class="chip'+(roomErase?' on':'')+'" data-sel="__erase">🧹 지우개</button>';
-  for(const k of S.roomOwned){const f=FURN[k];if(!f)continue;
-    html+='<button class="chip'+(!roomErase&&roomSel===k?' on':'')+'" data-sel="'+k+'">'+f.e+' '+f.n+'</button>';}
-  html+='</div>';
-  html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
-  for(let gy=0;gy<RPR;gy++)for(let gx=0;gx<RPC;gx++){
-    const key=gx+','+gy, pl=S.room[key];
-    html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #efd8e6;background:#fffdf8;font-size:22px;line-height:1">'+(pl&&FURN[pl]?FURN[pl].e:'')+'</button>';
+  let html='<div class="tabbtns">'
+    +'<button class="tabb'+(roomTab==='floor'?' on':'')+'" id="rtf">🛋️ 바닥 가구</button>'
+    +'<button class="tabb'+(roomTab==='wall'?' on':'')+'" id="rtw">🖼️ 벽 꾸미기</button>'
+    +'<button class="tabb'+(roomTab==='deco'?' on':'')+'" id="rtd">🎨 도배</button></div>';
+  if(roomTab==='floor'||roomTab==='wall'){
+    const isWall=roomTab==='wall';
+    const pool=Object.keys(FURN).filter(k=>!!FURN[k].wall===isWall);
+    const ownedPool=pool.filter(k=>S.roomOwned.includes(k));
+    if(!roomErase&&!ownedPool.includes(roomSel))roomSel=ownedPool[0]||'';
+    html+='<div class="small" style="text-align:center;margin-bottom:6px">'
+      +(isWall?'벽에 걸 장식을 고르고 칸을 눌러요':'가구를 고르고 칸을 눌러 놓아요! 침대는 크게, 소품은 작게 놓여요')+'</div>';
+    html+='<div style="margin-bottom:6px">';
+    html+='<button class="chip'+(roomErase?' on':'')+'" data-sel="__erase">🧹 지우개</button>';
+    for(const k of ownedPool){const f=FURN[k];
+      html+='<button class="chip'+(!roomErase&&roomSel===k?' on':'')+'" data-sel="'+k+'">'+f.e+' '+f.n+'</button>';}
+    html+='</div>';
+    if(isWall){
+      html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
+      for(let gx=0;gx<RPC;gx++){
+        const pl=S.roomWall[gx];
+        html+='<button class="rcell" data-wcell="'+gx+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #e6d4f0;background:#fbf6ff;font-size:20px;line-height:1">'+(pl&&FURN[pl]?FURN[pl].e:'')+'</button>';
+      }
+      html+='</div><div class="small" style="text-align:center;color:#a98">🪟 창문 옆 벽 한 줄에 걸 수 있어요</div>';
+    }else{
+      html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
+      for(let gy=0;gy<RPR;gy++)for(let gx=0;gx<RPC;gx++){
+        const key=gx+','+gy, pl=S.room[key], f=pl&&FURN[pl];
+        html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #efd8e6;background:#fffdf8;font-size:'+(f?Math.max(14,Math.min(26,Math.round((f.sz||28)*0.55))):20)+'px;line-height:1">'+(f?f.e:'')+'</button>';
+      }
+      html+='</div>';
+    }
+    const shop=pool.filter(k=>!S.roomOwned.includes(k));
+    if(shop.length){
+      html+='<div class="small" style="margin:8px 4px 4px">🛒 '+(isWall?'벽 장식':'가구')+' 상점</div>';
+      for(const k of shop){const f=FURN[k];
+        html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
+          +'<div class="grow"><div>'+f.n+'</div><div class="small">🪙 '+f.cost+'</div></div>'
+          +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
+    }else html+='<div class="small" style="text-align:center;margin-top:4px">이 종류는 모두 모았어요! 🎉</div>';
+  }else{
+    html+='<div class="small" style="text-align:center;margin-bottom:6px">벽지와 바닥을 바꿔 분위기를 새롭게! 🎨</div>';
+    html+='<div class="small" style="margin:4px">🧻 벽지</div>';
+    for(const k in WALLS){const w2=WALLS[k], owned=S.ownedWalls.includes(k), cur=S.roomDeco.wall===k;
+      html+='<div class="card rowline"><div style="width:34px;height:26px;border-radius:8px;background:linear-gradient(90deg,'+w2.c1+' 50%,'+w2.c2+' 50%);border:1.5px solid #e0cbd8;text-align:center;font-size:13px;line-height:26px">'+(w2.motif||'')+'</div>'
+        +'<div class="grow"><div>'+w2.n+(cur?' <span class="small" style="color:#59c97b">사용 중 ✅</span>':'')+'</div>'
+        +(owned?'':'<div class="small">🪙 '+w2.cost+'</div>')+'</div>'
+        +(cur?'':(owned?'<button class="pillbtn mint" data-wp="'+k+'">바르기</button>':'<button class="pillbtn" data-wp="'+k+'">사서 바르기</button>'))+'</div>';}
+    html+='<div class="small" style="margin:10px 4px 4px">🟫 바닥</div>';
+    for(const k in FLOORS){const f2=FLOORS[k], owned=S.ownedFloors.includes(k), cur=S.roomDeco.floor===k;
+      html+='<div class="card rowline"><div style="width:34px;height:26px;border-radius:8px;background:'+(f2.c2?('repeating-linear-gradient(45deg,'+f2.c+' 0 8px,'+f2.c2+' 8px 16px)'):f2.c)+';border:1.5px solid #e0cbd8"></div>'
+        +'<div class="grow"><div>'+f2.n+(cur?' <span class="small" style="color:#59c97b">사용 중 ✅</span>':'')+'</div>'
+        +(owned?'':'<div class="small">🪙 '+f2.cost+'</div>')+'</div>'
+        +(cur?'':(owned?'<button class="pillbtn mint" data-fl="'+k+'">깔기</button>':'<button class="pillbtn" data-fl="'+k+'">사서 깔기</button>'))+'</div>';}
   }
-  html+='</div>';
-  const shop=Object.keys(FURN).filter(k=>!S.roomOwned.includes(k));
-  if(shop.length){
-    html+='<div class="small" style="margin:8px 4px 4px">🛒 가구 상점</div>';
-    for(const k of shop){const f=FURN[k];
-      html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
-        +'<div class="grow"><div>'+f.n+'</div><div class="small">🪙 '+f.cost+'</div></div>'
-        +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
-  }else html+='<div class="small" style="text-align:center;margin-top:4px">모든 가구를 모았어요! 🎉</div>';
   html+='<div class="small" style="text-align:center;margin-top:6px">내 코인: 🪙 '+S.coins+'</div>';
   openModal('🛏️ 내 방 꾸미기',html);
+  const rf=$('rtf'),rw2=$('rtw'),rd=$('rtd');
+  if(rf)rf.addEventListener('pointerdown',()=>{roomTab='floor';roomErase=false;openRoomEditor();});
+  if(rw2)rw2.addEventListener('pointerdown',()=>{roomTab='wall';roomErase=false;openRoomEditor();});
+  if(rd)rd.addEventListener('pointerdown',()=>{roomTab='deco';openRoomEditor();});
   mbody.querySelectorAll('[data-sel]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const v=b.dataset.sel; if(v==='__erase')roomErase=true; else{roomErase=false;roomSel=v;} sTap(); openRoomEditor();
   }));
   mbody.querySelectorAll('[data-cell]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const key=b.dataset.cell;
     if(roomErase){ if(S.room[key]){delete S.room[key];sTap();} }
-    else{ if(!S.roomOwned.includes(roomSel))return; S.room[key]=roomSel; sPick(); }
+    else{ if(!S.roomOwned.includes(roomSel)||FURN[roomSel].wall)return; S.room[key]=roomSel; sPick(); }
+    saveGame(); openRoomEditor();
+  }));
+  mbody.querySelectorAll('[data-wcell]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const gx=b.dataset.wcell;
+    if(roomErase){ if(S.roomWall[gx]){delete S.roomWall[gx];sTap();} }
+    else{ if(!S.roomOwned.includes(roomSel)||!FURN[roomSel].wall)return; S.roomWall[gx]=roomSel; sPick(); }
     saveGame(); openRoomEditor();
   }));
   mbody.querySelectorAll('[data-buyf]').forEach(b=>b.addEventListener('pointerdown',()=>{
@@ -2069,6 +2130,22 @@ function openRoomEditor(){
     if(S.coins<f.cost){toast('🪙 코인이 부족해요!');sNo();return;}
     S.coins-=f.cost; S.roomOwned.push(k); roomSel=k; roomErase=false; sCoin(); confetti(10);
     toast('🎁 '+f.n+' 구입!'); updateHUD(); saveGame(); openRoomEditor();
+  }));
+  mbody.querySelectorAll('[data-wp]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.wp, w2=WALLS[k];
+    if(!S.ownedWalls.includes(k)){
+      if(S.coins<w2.cost){toast('🪙 코인이 부족해요!');sNo();return;}
+      S.coins-=w2.cost; S.ownedWalls.push(k); sCoin(); confetti(8);
+    }
+    S.roomDeco.wall=k; sYes(); toast('🧻 '+w2.n+' 벽지로 도배했어요!'); updateHUD(); saveGame(); openRoomEditor();
+  }));
+  mbody.querySelectorAll('[data-fl]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.fl, f2=FLOORS[k];
+    if(!S.ownedFloors.includes(k)){
+      if(S.coins<f2.cost){toast('🪙 코인이 부족해요!');sNo();return;}
+      S.coins-=f2.cost; S.ownedFloors.push(k); sCoin(); confetti(8);
+    }
+    S.roomDeco.floor=k; sYes(); toast('🟫 '+f2.n+'을(를) 새로 깔았어요!'); updateHUD(); saveGame(); openRoomEditor();
   }));
 }
 /* ============ 무역 UI ============ */
@@ -3342,24 +3419,45 @@ function blockedRoom(px,py){
 }
 function drawRoom(){
   const ox=-cam.x, oy=-cam.y, rw=RW*TILE, rh=RH*TILE;
+  const wp=WALLS[S.roomDeco.wall]||WALLS.pink, fl=FLOORS[S.roomDeco.floor]||FLOORS.wood;
   ctx.fillStyle='#c9a0b4';ctx.fillRect(0,0,W,H);
-  // 벽지
-  ctx.fillStyle='#f2dcec';ctx.fillRect(ox,oy,rw,TILE*2);
-  ctx.fillStyle='#e6c4dc';for(let x=0;x<RW;x++)if(x%2===0)ctx.fillRect(ox+x*TILE,oy,TILE,TILE*2);
+  // 벽지 (도배 반영)
+  ctx.fillStyle=wp.c1;ctx.fillRect(ox,oy,rw,TILE*2);
+  ctx.fillStyle=wp.c2;for(let x=0;x<RW;x++)if(x%2===0)ctx.fillRect(ox+x*TILE,oy,TILE,TILE*2);
+  if(wp.motif){ctx.globalAlpha=.45;ctx.font='12px serif';ctx.textAlign='center';
+    for(let x=0;x<RW;x++)ctx.fillText(wp.motif,ox+(x+0.5)*TILE,oy+(x%2?TILE*0.5:TILE*0.85));
+    ctx.globalAlpha=1;}
   ctx.fillStyle='#b98da2';ctx.fillRect(ox,oy+TILE*1.9,rw,6);
-  // 나무 바닥
-  ctx.fillStyle='#e8c9a0';ctx.fillRect(ox,oy+TILE*2,rw,rh-TILE*2);
-  ctx.strokeStyle='rgba(150,110,70,.18)';ctx.lineWidth=1;
-  for(let y=2;y<=RH;y++){ctx.beginPath();ctx.moveTo(ox,oy+y*TILE);ctx.lineTo(ox+rw,oy+y*TILE);ctx.stroke();}
-  for(let x=0;x<=RW;x+=2){ctx.beginPath();ctx.moveTo(ox+x*TILE,oy+TILE*2);ctx.lineTo(ox+x*TILE,oy+rh);ctx.stroke();}
-  // 벽 창문
-  ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-  ctx.fillText('🪟',ox+RW*0.28*TILE,oy+TILE*1.45);
-  // 놓인 가구 (y정렬)
+  // 바닥 (바닥재 반영)
+  if(fl.c2){ // 체크무늬
+    for(let gy=0;gy<RH-2;gy++)for(let gx=0;gx<RW;gx++){
+      ctx.fillStyle=((gx+gy)%2===0)?fl.c:fl.c2;
+      ctx.fillRect(ox+gx*TILE,oy+(2+gy)*TILE,TILE+1,TILE+1);}
+  }else{
+    ctx.fillStyle=fl.c;ctx.fillRect(ox,oy+TILE*2,rw,rh-TILE*2);
+    ctx.strokeStyle=fl.line;ctx.lineWidth=1;
+    for(let y=2;y<=RH;y++){ctx.beginPath();ctx.moveTo(ox,oy+y*TILE);ctx.lineTo(ox+rw,oy+y*TILE);ctx.stroke();}
+    for(let x=0;x<=RW;x+=2){ctx.beginPath();ctx.moveTo(ox+x*TILE,oy+TILE*2);ctx.lineTo(ox+x*TILE,oy+rh);ctx.stroke();}
+  }
+  // 창문 (왼쪽 고정)
+  ctx.font='28px serif';ctx.textAlign='center';ctx.fillText('🪟',ox+0.55*TILE,oy+TILE*1.42);
+  // 벽걸이 아이템 (액자·거울·시계·조명·가랜드)
+  for(const k in S.roomWall){
+    const f=FURN[S.roomWall[k]]; if(!f)continue; const gx=+k;
+    const wx=(1+gx+0.5)*TILE, wy=1.28*TILE+(f.bob?Math.sin(T*2+gx)*2:0);
+    drawEmoji(f.e,wx,wy,f.sz||24,0);
+  }
+  // 바닥 가구 (아래 것이 위에 오도록 y정렬, 크기별·그림자별)
   const items=[];
-  for(const key in S.room){const p=key.split(',');const gx=+p[0],gy=+p[1],f=FURN[S.room[key]];if(!f)continue;
-    const wx=(1+gx+0.5)*TILE, wy=(2+gy+0.95)*TILE; items.push({wy,wx,e:f.e});}
-  items.sort((a,b)=>a.wy-b.wy).forEach(it=>drawEmoji(it.e,it.wx,it.wy,30,12));
+  for(const key in S.room){
+    const p=key.split(','), gx=+p[0], gy=+p[1], f=FURN[S.room[key]];
+    if(!f)continue;
+    items.push({wx:(1+gx+0.5)*TILE, wy:(2+gy+0.95)*TILE, f, gx});
+  }
+  items.sort((a,b)=>a.wy-b.wy).forEach(it=>{
+    const bob=it.f.bob?Math.sin(T*2+it.gx)*3:0;
+    drawEmoji(it.f.e,it.wx,it.wy+(it.f.flat?3:0)-bob,it.f.sz||28,it.f.flat?3:11);
+  });
   // 이젤(꾸미기)
   drawEmoji(ROOMEDIT.e,ROOMEDIT.px,ROOMEDIT.py+Math.sin(T*2)*1.5,30,12);
   {const x=ROOMEDIT.px-cam.x,y=ROOMEDIT.py-cam.y;ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('꾸미기',x,y+18);}
@@ -3367,77 +3465,6 @@ function drawRoom(){
   const exX=ox+RW/2*TILE, exY=oy+(RH-0.55)*TILE;
   ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('🚪',exX,exY);
   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#7a5c40';ctx.fillText('⬇ 나가기',exX,exY-26);
-}
-/* ============ 다른 왕국 항구 (걸어다니는 지역) ============ */
-function enterPort(nt){
-  world='port'; activeNation=nt; tradeTab='sell';
-  player.x=PW/2*TILE; player.y=8*TILE;
-  S.portAt=nt.id; saveGame(); sYes();
-  banner('⛵ '+nt.e+' '+nt.n+'에 도착!','항구를 자유롭게 둘러봐요');
-}
-function exitPort(){
-  world='out'; activeNation=null; S.portAt=null;
-  player.x=TRADER.px; player.y=(SEA_TOP-0.6)*TILE;
-  saveGame(); sTap(); toast('🏠 우리 왕국에 돌아왔어요');
-}
-function blockedPort(px,py){
-  if(px<TILE*0.7||px>PW*TILE-TILE*0.7)return true;
-  if(py<TILE*5.6||py>(PH-0.4)*TILE)return true;
-  return false;
-}
-function drawPortWalk(){
-  const nt=nation(), ox=-cam.x, oy=-cam.y;
-  // 하늘 (왕국 고유 색)
-  const sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,shade(nt.c,60));sky.addColorStop(.5,shade(nt.c,95));sky.addColorStop(1,'#dff2ff');
-  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(W*0.82,H*0.13,36,0,7);ctx.fill();
-  const hz=3.1*TILE+oy;
-  // 먼 왕국 실루엣 (탑과 돔)
-  ctx.fillStyle=shade(nt.c,-8);
-  for(let i=0;i<8;i++){const bx=(1.2+i*1.9)*TILE+ox, bw=1.15*TILE, bh=(0.9+((i*37)%5)*0.28)*TILE;
-    ctx.fillRect(bx-bw/2,hz-bh,bw,bh);
-    ctx.beginPath();ctx.moveTo(bx-bw/2-5,hz-bh);ctx.lineTo(bx+bw/2+5,hz-bh);ctx.lineTo(bx,hz-bh-24);ctx.closePath();ctx.fill();}
-  // 큰 국기
-  ctx.font='52px serif';ctx.textAlign='center';
-  ctx.fillText(nt.e,8*TILE+ox,hz-2.0*TILE+Math.sin(T*1.5)*4);
-  // 바다
-  const plazaY=5.3*TILE+oy;
-  const sea=ctx.createLinearGradient(0,hz,0,plazaY);
-  sea.addColorStop(0,'#7ccaf2');sea.addColorStop(1,'#3f9fd9');
-  ctx.fillStyle=sea;ctx.fillRect(ox,hz,PW*TILE,plazaY-hz);
-  ctx.fillStyle='rgba(255,255,255,.3)';
-  for(let i=0;i<4;i++){const wy=hz+(i+1)*((plazaY-hz)/5);ctx.fillRect(ox,wy+Math.sin(T*2+i)*2,PW*TILE,2);}
-  // 항구 광장 (돌바닥)
-  ctx.fillStyle='#e7d9c3';ctx.fillRect(ox,plazaY,PW*TILE,PH*TILE-(plazaY-oy));
-  ctx.strokeStyle='rgba(150,120,90,.18)';ctx.lineWidth=1;
-  for(let y=5.3;y<PH;y+=0.9){ctx.beginPath();ctx.moveTo(ox,y*TILE+oy);ctx.lineTo(ox+PW*TILE,y*TILE+oy);ctx.stroke();}
-  for(let x=0;x<=PW;x+=1.2){ctx.beginPath();ctx.moveTo(x*TILE+ox,plazaY);ctx.lineTo(x*TILE+ox,PH*TILE+oy);ctx.stroke();}
-  ctx.fillStyle='#b98d5f';ctx.fillRect(ox,plazaY-6,PW*TILE,8); // 부두 난간
-  // 귀항 배
-  drawEmoji('⛵',PSHIP.px,4.85*TILE,50,0);
-  {const x=PSHIP.px-cam.x,y=PSHIP.py-cam.y;
-   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('⛵ 우리 왕국으로',x,y+18);}
-  // 무역 노점
-  drawEmoji('🏪',PSTALL.px,PSTALL.py,38,14);
-  drawEmoji(nt.e,PSTALL.px,PSTALL.py-42+Math.sin(T*2)*2,20,0);
-  {const x=PSTALL.px-cam.x,y=PSTALL.py-cam.y;
-   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText(nt.n+' 상점',x,y+22);
-   const reqAvail=!reqDone(nt);
-   if(reqAvail){const by=y-52+Math.sin(T*3)*2.5;ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
-     ctx.beginPath();ctx.arc(x,by,11,0,7);ctx.fill();ctx.stroke();ctx.font='12px serif';ctx.fillText('📜',x,by+4);}}
-  // 광장 장식
-  drawEmoji('📦',7.2*TILE,6.3*TILE,24,10);
-  drawEmoji('🏮',1.6*TILE,6.0*TILE,24,10);
-  drawEmoji('🏮',14.4*TILE,6.0*TILE,24,10);
-  drawEmoji('🌴',1.4*TILE,8.9*TILE,30,12);
-  drawEmoji('🌴',14.6*TILE,8.9*TILE,30,12);
-  // 이름 배너 (화면 상단)
-  ctx.fillStyle='rgba(255,255,255,.92)';
-  const label=nt.e+' '+nt.n+' 항구';
-  ctx.font='16px Jua, sans-serif';const lw=ctx.measureText(label).width+28;
-  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(W/2-lw/2,10,lw,30,15);ctx.fill();}else ctx.fillRect(W/2-lw/2,10,lw,30);
-  ctx.fillStyle=nt.c;ctx.textAlign='center';ctx.fillText(label,W/2,31);
 }
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
