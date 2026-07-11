@@ -727,16 +727,16 @@ const RECIPES={
   royalFeast:{buff:'renown',dur:180, need:{pumpkin:1,fishAny:1,milk:1}},
 };
 const FURN={
-  bed:{n:'침대',e:'🛏️',cost:0,sz:48}, rug:{n:'러그',e:'🟪',cost:0,sz:44,flat:true},
-  plant:{n:'화분',e:'🪴',cost:25,sz:30}, teatable:{n:'티테이블',e:'🫖',cost:40,sz:32},
-  teddy:{n:'곰인형',e:'🧸',cost:30,sz:28}, lamp:{n:'램프',e:'🪔',cost:28,sz:24},
-  books:{n:'책장',e:'📚',cost:45,sz:38}, cake:{n:'케이크',e:'🎂',cost:30,sz:24},
-  balloon:{n:'풍선',e:'🎈',cost:20,sz:30,bob:true}, vase:{n:'꽃병',e:'💐',cost:25,sz:26},
-  cushion:{n:'고양이 쿠션',e:'🐈',cost:35,sz:28}, gift:{n:'선물상자',e:'🎁',cost:22,sz:24},
-  piano:{n:'피아노',e:'🎹',cost:70,sz:42},
-  painting:{n:'액자',e:'🖼️',cost:35,sz:30,wall:true}, mirror:{n:'거울',e:'🪞',cost:35,sz:28,wall:true},
-  clock:{n:'시계',e:'🕰️',cost:40,sz:22,wall:true}, star:{n:'별 조명',e:'⭐',cost:50,sz:22,wall:true,bob:true},
-  garland:{n:'리본 가랜드',e:'🎀',cost:30,sz:24,wall:true}, wreath:{n:'꽃 리스',e:'🌸',cost:28,sz:24,wall:true},
+  bed:{n:'침대',e:'🛏️',cost:0,sz:58}, rug:{n:'러그',e:'🟪',cost:0,sz:56,flat:true},
+  piano:{n:'피아노',e:'🎹',cost:70,sz:54}, books:{n:'책장',e:'📚',cost:45,sz:46},
+  teatable:{n:'티테이블',e:'🫖',cost:40,sz:38}, balloon:{n:'풍선',e:'🎈',cost:20,sz:34,bob:true},
+  plant:{n:'화분',e:'🪴',cost:25,sz:32}, teddy:{n:'곰인형',e:'🧸',cost:30,sz:32},
+  cushion:{n:'고양이 쿠션',e:'🐈',cost:35,sz:32}, vase:{n:'꽃병',e:'💐',cost:25,sz:28},
+  gift:{n:'선물상자',e:'🎁',cost:22,sz:28}, lamp:{n:'램프',e:'🪔',cost:28,sz:26},
+  cake:{n:'케이크',e:'🎂',cost:30,sz:26},
+  painting:{n:'액자',e:'🖼️',cost:35,sz:34,wall:true}, mirror:{n:'거울',e:'🪞',cost:35,sz:30,wall:true},
+  garland:{n:'리본 가랜드',e:'🎀',cost:30,sz:28,wall:true}, wreath:{n:'꽃 리스',e:'🌸',cost:28,sz:26,wall:true},
+  star:{n:'별 조명',e:'⭐',cost:50,sz:24,wall:true,bob:true}, clock:{n:'시계',e:'🕰️',cost:40,sz:22,wall:true},
 };
 const WALLS={
   pink:{n:'분홍 꽃무늬',c1:'#f2dcec',c2:'#e6c4dc',motif:'🌸',cost:0},
@@ -1059,7 +1059,7 @@ function freshState(){return{
   trade:{done:{},seen:-1},
   starStep:0, starOn:false, starDone:false,
   buff:null, cookdex:{},
-  room:{}, roomOwned:['bed','rug'], portAt:null,
+  room:{}, roomOwned:['bed','rug'], roomInv:{bed:1,rug:1}, portAt:null,
   roomWall:{}, roomDeco:{wall:'pink',floor:'wood'}, ownedWalls:['pink'], ownedFloors:['wood'],
   stamps:{},
 };}
@@ -1131,6 +1131,13 @@ function applyLoaded(d){
   S.buff=null; if(!S.cookdex)S.cookdex={};
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
   if(!S.roomWall)S.roomWall={}; if(!S.roomDeco)S.roomDeco={wall:'pink',floor:'wood'};
+  if(!d.roomInv){ // 예전 저장: 보유 종류 → 실물 1개씩 보관함으로 (놓인 가구는 그대로)
+    S.roomInv={};
+    const placed={};
+    for(const k in S.room){const f=S.room[k];placed[f]=(placed[f]||0)+1;}
+    for(const g in S.roomWall){const f=S.roomWall[g];placed[f]=(placed[f]||0)+1;}
+    (d.roomOwned||['bed','rug']).forEach(k=>{if(FURN[k]&&!placed[k])S.roomInv[k]=1;});
+  }
   if(!S.ownedWalls)S.ownedWalls=['pink']; if(!S.ownedFloors)S.ownedFloors=['wood'];
   if(!S.stamps)S.stamps={};
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
@@ -2069,7 +2076,21 @@ function openCookpot(){
   }));
 }
 /* ============ 내 방 꾸미기 UI ============ */
-let roomSel='bed', roomErase=false, roomTab='floor';
+let roomTab='floor', edSel=null; // edSel: {inv:k} 보관함 선택 | {cell:key}/{wcell:gx} 놓인 가구 선택
+function invCnt(k){return S.roomInv[k]||0;}
+function invAdd(k,d){S.roomInv[k]=(S.roomInv[k]||0)+d; if(S.roomInv[k]<=0)delete S.roomInv[k];}
+function roomPlace(map,key,k,isWall){
+  if(!FURN[k]||!!FURN[k].wall!==isWall||invCnt(k)<=0||map[key])return false;
+  map[key]=k; invAdd(k,-1); return true;
+}
+function roomMove(map,a,b){
+  if(a===b||!map[a])return false;
+  const t=map[b]; map[b]=map[a]; if(t)map[a]=t; else delete map[a]; return true;
+}
+function roomStore(map,key){
+  const k=map[key]; if(!k)return false;
+  delete map[key]; invAdd(k,1); return true;
+}
 function openRoomEditor(){
   let html='<div class="tabbtns">'
     +'<button class="tabb'+(roomTab==='floor'?' on':'')+'" id="rtf">🛋️ 바닥 가구</button>'
@@ -2077,39 +2098,50 @@ function openRoomEditor(){
     +'<button class="tabb'+(roomTab==='deco'?' on':'')+'" id="rtd">🎨 도배</button></div>';
   if(roomTab==='floor'||roomTab==='wall'){
     const isWall=roomTab==='wall';
-    const pool=Object.keys(FURN).filter(k=>!!FURN[k].wall===isWall);
-    const ownedPool=pool.filter(k=>S.roomOwned.includes(k));
-    if(!roomErase&&!ownedPool.includes(roomSel))roomSel=ownedPool[0]||'';
-    html+='<div class="small" style="text-align:center;margin-bottom:6px">'
-      +(isWall?'벽에 걸 장식을 고르고 칸을 눌러요':'가구를 고르고 칸을 눌러 놓아요! 침대는 크게, 소품은 작게 놓여요')+'</div>';
-    html+='<div style="margin-bottom:6px">';
-    html+='<button class="chip'+(roomErase?' on':'')+'" data-sel="__erase">🧹 지우개</button>';
-    for(const k of ownedPool){const f=FURN[k];
-      html+='<button class="chip'+(!roomErase&&roomSel===k?' on':'')+'" data-sel="'+k+'">'+f.e+' '+f.n+'</button>';}
+    const map=isWall?S.roomWall:S.room;
+    const selKey=edSel&&(isWall?edSel.wcell:edSel.cell);
+    // 안내
+    if(selKey!=null&&map[selKey]){
+      html+='<div class="small" style="text-align:center;margin-bottom:6px;color:#e8548e"><b>'+FURN[map[selKey]].e+' '+FURN[map[selKey]].n+'</b> 선택! 다른 칸을 눌러 옮기거나, 아래 📦를 눌러요</div>';
+    }else if(edSel&&edSel.inv){
+      html+='<div class="small" style="text-align:center;margin-bottom:6px;color:#2e9e6b"><b>'+FURN[edSel.inv].e+' '+FURN[edSel.inv].n+'</b> 들었어요! 빈 칸을 눌러 놓아요</div>';
+    }else{
+      html+='<div class="small" style="text-align:center;margin-bottom:6px">보관함에서 가구를 골라 빈 칸에 놓고, 놓인 가구는 눌러서 <b>옮길</b> 수 있어요</div>';
+    }
+    // 보관함
+    const invKeys=Object.keys(S.roomInv).filter(k=>FURN[k]&&!!FURN[k].wall===isWall&&invCnt(k)>0);
+    html+='<div class="small" style="margin:2px 4px">🧺 보관함</div><div style="margin-bottom:6px">';
+    if(!invKeys.length)html+='<span class="small" style="margin-left:6px;color:#a98">비어 있어요 — 아래 상점에서 사거나, 놓인 가구를 📦 보관해요</span>';
+    for(const k of invKeys){const f=FURN[k];
+      html+='<button class="chip'+(edSel&&edSel.inv===k?' on':'')+'" data-inv="'+k+'">'+f.e+' '+f.n+' ×'+invCnt(k)+'</button>';}
     html+='</div>';
+    // 격자
     if(isWall){
       html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
       for(let gx=0;gx<RPC;gx++){
-        const pl=S.roomWall[gx];
-        html+='<button class="rcell" data-wcell="'+gx+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #e6d4f0;background:#fbf6ff;font-size:20px;line-height:1">'+(pl&&FURN[pl]?FURN[pl].e:'')+'</button>';
+        const pl=S.roomWall[gx], f=pl&&FURN[pl], on=edSel&&edSel.wcell==gx;
+        html+='<button class="rcell" data-wcell="'+gx+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#e6d4f0')+';background:'+(on?'#fff0f6':'#fbf6ff')+';font-size:'+(f?Math.max(14,Math.min(26,Math.round(f.sz*0.5))):18)+'px;line-height:1">'+(f?f.e:'')+'</button>';
       }
-      html+='</div><div class="small" style="text-align:center;color:#a98">🪟 창문 옆 벽 한 줄에 걸 수 있어요</div>';
+      html+='</div>';
     }else{
       html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
       for(let gy=0;gy<RPR;gy++)for(let gx=0;gx<RPC;gx++){
-        const key=gx+','+gy, pl=S.room[key], f=pl&&FURN[pl];
-        html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2px solid #efd8e6;background:#fffdf8;font-size:'+(f?Math.max(14,Math.min(26,Math.round((f.sz||28)*0.55))):20)+'px;line-height:1">'+(f?f.e:'')+'</button>';
+        const key=gx+','+gy, pl=S.room[key], f=pl&&FURN[pl], on=edSel&&edSel.cell===key;
+        html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#efd8e6')+';background:'+(on?'#fff0f6':'#fffdf8')+';font-size:'+(f?Math.max(13,Math.min(30,Math.round(f.sz*0.52))):18)+'px;line-height:1">'+(f?f.e:'')+'</button>';
       }
       html+='</div>';
     }
-    const shop=pool.filter(k=>!S.roomOwned.includes(k));
-    if(shop.length){
-      html+='<div class="small" style="margin:8px 4px 4px">🛒 '+(isWall?'벽 장식':'가구')+' 상점</div>';
-      for(const k of shop){const f=FURN[k];
-        html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
-          +'<div class="grow"><div>'+f.n+'</div><div class="small">🪙 '+f.cost+'</div></div>'
-          +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
-    }else html+='<div class="small" style="text-align:center;margin-top:4px">이 종류는 모두 모았어요! 🎉</div>';
+    // 선택된 가구 → 보관 버튼
+    if(selKey!=null&&map[selKey]){
+      html+='<button class="pillbtn gray" id="rstore" style="width:100%;margin:2px 0 6px">📦 보관함에 넣기</button>';
+    }
+    // 상점 (같은 가구도 여러 개 살 수 있어요)
+    const shop=Object.keys(FURN).filter(k=>!!FURN[k].wall===isWall&&FURN[k].cost>0);
+    html+='<div class="small" style="margin:8px 4px 4px">🛒 '+(isWall?'벽 장식':'가구')+' 상점 <span style="color:#a98">· 하나 사면 실물 1개!</span></div>';
+    for(const k of shop){const f=FURN[k];
+      html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
+        +'<div class="grow"><div>'+f.n+(invCnt(k)||Object.values(S.room).includes(k)||Object.values(S.roomWall).includes(k)?' <span class="small">보유</span>':'')+'</div><div class="small">🪙 '+f.cost+'</div></div>'
+        +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
   }else{
     html+='<div class="small" style="text-align:center;margin-bottom:6px">벽지와 바닥을 바꿔 분위기를 새롭게! 🎨</div>';
     html+='<div class="small" style="margin:4px">🧻 벽지</div>';
@@ -2128,29 +2160,54 @@ function openRoomEditor(){
   html+='<div class="small" style="text-align:center;margin-top:6px">내 코인: 🪙 '+S.coins+'</div>';
   openModal('🛏️ 내 방 꾸미기',html);
   const rf=$('rtf'),rw2=$('rtw'),rd=$('rtd');
-  if(rf)rf.addEventListener('pointerdown',()=>{roomTab='floor';roomErase=false;openRoomEditor();});
-  if(rw2)rw2.addEventListener('pointerdown',()=>{roomTab='wall';roomErase=false;openRoomEditor();});
-  if(rd)rd.addEventListener('pointerdown',()=>{roomTab='deco';openRoomEditor();});
-  mbody.querySelectorAll('[data-sel]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const v=b.dataset.sel; if(v==='__erase')roomErase=true; else{roomErase=false;roomSel=v;} sTap(); openRoomEditor();
+  if(rf)rf.addEventListener('pointerdown',()=>{roomTab='floor';edSel=null;openRoomEditor();});
+  if(rw2)rw2.addEventListener('pointerdown',()=>{roomTab='wall';edSel=null;openRoomEditor();});
+  if(rd)rd.addEventListener('pointerdown',()=>{roomTab='deco';edSel=null;openRoomEditor();});
+  mbody.querySelectorAll('[data-inv]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const k=b.dataset.inv;
+    edSel=(edSel&&edSel.inv===k)?null:{inv:k}; sTap(); openRoomEditor();
   }));
   mbody.querySelectorAll('[data-cell]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const key=b.dataset.cell;
-    if(roomErase){ if(S.room[key]){delete S.room[key];sTap();} }
-    else{ if(!S.roomOwned.includes(roomSel)||FURN[roomSel].wall)return; S.room[key]=roomSel; sPick(); }
+    const key=b.dataset.cell, cur=S.room[key];
+    if(edSel&&edSel.cell!=null){ // 이동/맞바꿈
+      if(edSel.cell===key){edSel=null;}
+      else{roomMove(S.room,edSel.cell,key); edSel=null; sPick();}
+    }else if(edSel&&edSel.inv){
+      if(cur){edSel={cell:key}; sTap();}
+      else if(roomPlace(S.room,key,edSel.inv,false)){sPick(); if(invCnt(edSel.inv)<=0)edSel=null;}
+      else{sNo();}
+    }else{
+      if(cur){edSel={cell:key}; sTap();}
+      else{toast('🧺 보관함에서 가구를 먼저 골라요');}
+    }
     saveGame(); openRoomEditor();
   }));
   mbody.querySelectorAll('[data-wcell]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const gx=b.dataset.wcell;
-    if(roomErase){ if(S.roomWall[gx]){delete S.roomWall[gx];sTap();} }
-    else{ if(!S.roomOwned.includes(roomSel)||!FURN[roomSel].wall)return; S.roomWall[gx]=roomSel; sPick(); }
+    const gx=b.dataset.wcell, cur=S.roomWall[gx];
+    if(edSel&&edSel.wcell!=null){
+      if(edSel.wcell==gx){edSel=null;}
+      else{roomMove(S.roomWall,edSel.wcell,gx); edSel=null; sPick();}
+    }else if(edSel&&edSel.inv){
+      if(cur){edSel={wcell:gx}; sTap();}
+      else if(roomPlace(S.roomWall,gx,edSel.inv,true)){sPick(); if(invCnt(edSel.inv)<=0)edSel=null;}
+      else{sNo();}
+    }else{
+      if(cur){edSel={wcell:gx}; sTap();}
+      else{toast('🧺 보관함에서 벽 장식을 먼저 골라요');}
+    }
     saveGame(); openRoomEditor();
   }));
+  const rs=$('rstore');
+  if(rs)rs.addEventListener('pointerdown',()=>{
+    if(edSel&&edSel.cell!=null)roomStore(S.room,edSel.cell);
+    else if(edSel&&edSel.wcell!=null)roomStore(S.roomWall,edSel.wcell);
+    edSel=null; sTap(); saveGame(); openRoomEditor();
+  });
   mbody.querySelectorAll('[data-buyf]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.buyf, f=FURN[k];
     if(S.coins<f.cost){toast('🪙 코인이 부족해요!');sNo();return;}
-    S.coins-=f.cost; S.roomOwned.push(k); roomSel=k; roomErase=false; sCoin(); confetti(10);
-    toast('🎁 '+f.n+' 구입!'); updateHUD(); saveGame(); openRoomEditor();
+    S.coins-=f.cost; invAdd(k,1); edSel={inv:k}; sCoin(); confetti(10);
+    toast('🎁 '+f.n+' 구입! 칸을 눌러 놓아요'); updateHUD(); saveGame(); openRoomEditor();
   }));
   mbody.querySelectorAll('[data-wp]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.wp, w2=WALLS[k];
