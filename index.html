@@ -1036,7 +1036,7 @@ function freshState(){return{
   trade:{done:{},seen:-1},
   starStep:0, starOn:false, starDone:false,
   buff:null, cookdex:{},
-  room:{}, roomOwned:['bed','rug'],
+  room:{}, roomOwned:['bed','rug'], portAt:null,
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1105,6 +1105,12 @@ function applyLoaded(d){
   if(!S.owned.shoes)S.owned.shoes=['pink'];
   S.buff=null; if(!S.cookdex)S.cookdex={};
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
+  // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
+  if(S.portAt){
+    const nt=NATIONS.find(x=>x.id===S.portAt);
+    if(nt&&nationUnlocked(nt)){world='port';activeNation=nt;player.x=PW/2*TILE;player.y=8*TILE;}
+    else S.portAt=null;
+  }
   if(typeof S.trade.done!=='object'||S.trade.done===null)S.trade.done={};
   muted=!!S.muted; musicOn=S.music!==false;
 }
@@ -1129,7 +1135,8 @@ const jz=$('joyzone'),jb=$('joybase'),jt=$('joythumb');
 let uiOpen=0; // 모달/대화 열림 수 (이동 잠금)
 
 jz.addEventListener('pointerdown',e=>{
-  if(uiOpen>0||joy.active)return;
+  if(uiOpen>0)return;
+  e.preventDefault(); // 길게 눌러도 선택/메뉴가 뜨지 않게
   joy.active=true;joy.id=e.pointerId;joy.bx=e.clientX;joy.by=e.clientY;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='block';
   jb.style.left=(joy.bx-55)+'px';jb.style.top=(joy.by-55)+'px';
@@ -1151,6 +1158,11 @@ function joyEnd(e){
 }
 window.addEventListener('pointerup',joyEnd);
 window.addEventListener('pointercancel',joyEnd);
+// 길게 누를 때 뜨는 메뉴/선택이 조작을 끊는 것을 방지
+window.addEventListener('contextmenu',e=>e.preventDefault());
+// 앱 전환·화면 꺼짐 후 유령 조작 방지
+window.addEventListener('blur',()=>joyEnd());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)joyEnd();});
 
 /* ---- 이동 가능 판정 ---- */
 function tileType(px,py){
@@ -1162,6 +1174,7 @@ function blocked(px,py){
   if(world==='in')return blockedIn(px,py);
   if(world==='garden')return blockedGarden(px,py);
   if(world==='room')return blockedRoom(px,py);
+  if(world==='port')return blockedPort(px,py);
   if(tileType(px,py)===1)return true; // 바다
   if(px>CASTLE.x&&px<CASTLE.x+CASTLE.w&&py>CASTLE.y&&py<CASTLE.y+CASTLE.h){
     if(Math.abs(px-(CASTLE.x+CASTLE.w/2))<26&&py>CASTLE.y+CASTLE.h-40)return false; // 성문 통로
@@ -1207,6 +1220,13 @@ function findNearest(){
   if(world==='room'){
     const d=Math.hypot(player.x-ROOMEDIT.px,player.y-ROOMEDIT.py);
     if(d<74)consider(d,{type:'roomedit'});
+    nearest=best; return;
+  }
+  if(world==='port'){
+    const d1=Math.hypot(player.x-PSTALL.px,player.y-PSTALL.py);
+    if(d1<76)consider(d1,{type:'porttrade'});
+    const d2=Math.hypot(player.x-PSHIP.px,player.y-PSHIP.py);
+    if(d2<76)consider(d2,{type:'porthome'});
     nearest=best; return;
   }
   if(curRank()>=2){
@@ -1260,6 +1280,8 @@ function updateActBtn(){
     else if(nearest.type==='rnpc'){ic=REGIONNPC[nearest.id].e;lb='말하기';}
     else if(nearest.type==='starnpc'){ic='🌟';lb='말하기';}
     else if(nearest.type==='roomedit'){ic='🎨';lb='꾸미기';}
+    else if(nearest.type==='porttrade'){ic=nation().e;lb='무역하기';}
+    else if(nearest.type==='porthome'){ic='⛵';lb='귀항하기';}
     else if(nearest.type==='human'){ic=HUMANS[nearest.id].e;lb='말하기';}
     else if(nearest.type==='mumu'){ic=MUMU.e;lb='말하기';}
     else if(nearest.type==='trade'){ic=curVisitor().e;lb='무역하기';}
@@ -1286,6 +1308,12 @@ function doAction(){
   else if(nearest.type==='rnpc')openRegionNpc(nearest.id);
   else if(nearest.type==='starnpc')openStarSpirit();
   else if(nearest.type==='roomedit')openRoomEditor();
+  else if(nearest.type==='porttrade'){tradeTab='sell';openTrade();}
+  else if(nearest.type==='porthome'){
+    dialog('⛵','무역선',['우리 왕국으로 돌아갈까요?'],[
+      {label:'집으로 출항! ⛵',fn:()=>exitPort()},
+      {label:'더 둘러볼래요',gray:true}]);
+  }
   else if(nearest.type==='human')openHuman(nearest.id);
   else if(nearest.type==='mumu')openMumu();
   else if(nearest.type==='trade'){activeNation=null;atSea=false;tradeTab='sell';openTrade();}
@@ -1732,7 +1760,6 @@ function openModal(title,html){
 }
 function closeModal(){
   if(mwrap.style.display==='flex'){mwrap.style.display='none';uiOpen--;mbody.innerHTML='';saveGame();}
-  if(atSea){atSea=false;activeNation=null;toast('🏠 우리 왕국으로 돌아왔어요');}
 }
 $('mclose').addEventListener('pointerdown',closeModal);
 mwrap.addEventListener('pointerdown',e=>{if(e.target===mwrap)closeModal();});
@@ -2051,7 +2078,7 @@ function openTrade(){
   const reqAvail=!reqDone(K);
   let html='<div class="card" style="border:2px solid '+K.c+';background:#fff;text-align:center">'
     +'<div style="font-size:30px">'+K.e+'</div>'
-    +'<div style="font-size:16px;color:'+K.c+'"><b>'+K.n+'</b>'+(atSea?'에 도착!':'의 무역선')+'</div>'
+    +'<div style="font-size:16px;color:'+K.c+'"><b>'+K.n+'</b>'+(world==='port'?'에 도착!':'의 무역선')+'</div>'
     +'<div class="small" style="margin-top:2px">'+K.greet+'</div></div>';
   html+='<div class="tabbtns">'
     +'<button class="tabb'+(tradeTab==='sell'?' on':'')+'" id="ttsell">팔기 🪙</button>'
@@ -2105,18 +2132,18 @@ function openTrade(){
     }
     html+='</div>';
   }
-  if(atSea){
-    html+='<button class="pillbtn gray" id="tback" style="width:100%;margin-top:8px">🏠 우리 항구로 돌아가기</button>';
+  if(world==='port'){
+    html+='<button class="pillbtn gray" id="tback" style="width:100%;margin-top:8px">⛵ 배 타고 우리 왕국으로</button>';
   }else if(S.renown>=VOYAGE_MIN){
     html+='<button class="pillbtn pink" id="tvoyage" style="width:100%;margin-top:8px">🧭 다른 왕국로 항해 떠나기</button>';
   }else{
     html+='<div class="small" style="text-align:center;margin-top:6px;color:#a98">👑 명성 '+VOYAGE_MIN+'이 되면 다른 왕국로 항해할 수 있어요</div>';
   }
   html+='<div class="small" style="text-align:center;margin-top:6px">내 코인: 🪙 '+S.coins+'</div>';
-  openModal(K.e+' '+K.n+(atSea?' 항구':' 무역선'),html);
+  openModal(K.e+' '+K.n+(world==='port'?' 항구':' 무역선'),html);
 
   const tv=$('tvoyage'); if(tv)tv.addEventListener('pointerdown',()=>{sTap();openVoyage();});
-  const tb=$('tback'); if(tb)tb.addEventListener('pointerdown',()=>{sTap();activeNation=null;atSea=false;openVoyage();});
+  const tb=$('tback'); if(tb)tb.addEventListener('pointerdown',()=>{closeModal();exitPort();});
   $('ttsell').addEventListener('pointerdown',()=>{tradeTab='sell';openTrade();});
   $('ttbuy').addEventListener('pointerdown',()=>{tradeTab='buy';openTrade();});
   $('ttreq').addEventListener('pointerdown',()=>{tradeTab='req';openTrade();});
@@ -2149,7 +2176,7 @@ function openTrade(){
     grantItem(r.gift); addRenown(r.ren);
     confetti(30); sLevel();
     banner('🎁 '+K2.n+'의 의뢰 완료!','🪙 '+r.coins+' + 👑 명성 '+r.ren+' 획득!');
-    if(atSea)petXpGain(2);
+    if(world==='port')petXpGain(2);
     updateHUD(); saveGame(); openTrade();
   });
 }
@@ -2185,10 +2212,8 @@ function openVoyage(){
   openModal('🧭 항해 지도',html);
   mbody.querySelectorAll('[data-sail]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const nt=NATIONS.find(x=>x.id===b.dataset.sail); if(!nt||!nationUnlocked(nt))return;
-    sYes();
-    activeNation=nt; atSea=true; tradeTab='sell';
-    banner('⛵ '+nt.e+' '+nt.n+'로 항해 중…','파도를 넘어 도착했어요!');
-    openTrade();
+    sYes(); closeModal();
+    enterPort(nt);
   }));
 }
 
@@ -2788,8 +2813,11 @@ let world='out'; // 'out' 숲 / 'in' 성안 / 'garden' 별빛 정원
 const IW=20, IH=14;
 const GW=18, GH=13; // 별빛 정원 크기
 const RW=9, RH=7;    // 내 방 크기
-function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:MAP_W)*TILE;}
-function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:MAP_H)*TILE;}
+const PW=16, PH=10;  // 다른 왕국 항구 크기
+function worldW(){return (world==='in'?IW:world==='garden'?GW:world==='room'?RW:world==='port'?PW:MAP_W)*TILE;}
+function worldH(){return (world==='in'?IH:world==='garden'?GH:world==='room'?RH:world==='port'?PH:MAP_H)*TILE;}
+const PSTALL={tx:4,ty:6.7}; PSTALL.px=PSTALL.tx*TILE+24; PSTALL.py=PSTALL.ty*TILE+24;
+const PSHIP={tx:12.5,ty:6.1}; PSHIP.px=PSHIP.tx*TILE+24; PSHIP.py=PSHIP.ty*TILE+24;
 const ROOMEDIT={e:'🎨',n:'꾸미기',tx:7.6,ty:4.9}; ROOMEDIT.px=ROOMEDIT.tx*TILE+24; ROOMEDIT.py=ROOMEDIT.ty*TILE+30;
 const PORTAL={tx:OX+20,ty:2}; PORTAL.px=PORTAL.tx*TILE+24; PORTAL.py=PORTAL.ty*TILE+24;
 const STARNPC={e:'🌟',n:'별의 정령',px:GW/2*TILE,py:5*TILE+24};
@@ -3340,6 +3368,77 @@ function drawRoom(){
   ctx.font='24px serif';ctx.textAlign='center';ctx.fillText('🚪',exX,exY);
   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#7a5c40';ctx.fillText('⬇ 나가기',exX,exY-26);
 }
+/* ============ 다른 왕국 항구 (걸어다니는 지역) ============ */
+function enterPort(nt){
+  world='port'; activeNation=nt; tradeTab='sell';
+  player.x=PW/2*TILE; player.y=8*TILE;
+  S.portAt=nt.id; saveGame(); sYes();
+  banner('⛵ '+nt.e+' '+nt.n+'에 도착!','항구를 자유롭게 둘러봐요');
+}
+function exitPort(){
+  world='out'; activeNation=null; S.portAt=null;
+  player.x=TRADER.px; player.y=(SEA_TOP-0.6)*TILE;
+  saveGame(); sTap(); toast('🏠 우리 왕국에 돌아왔어요');
+}
+function blockedPort(px,py){
+  if(px<TILE*0.7||px>PW*TILE-TILE*0.7)return true;
+  if(py<TILE*5.6||py>(PH-0.4)*TILE)return true;
+  return false;
+}
+function drawPortWalk(){
+  const nt=nation(), ox=-cam.x, oy=-cam.y;
+  // 하늘 (왕국 고유 색)
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,shade(nt.c,60));sky.addColorStop(.5,shade(nt.c,95));sky.addColorStop(1,'#dff2ff');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(W*0.82,H*0.13,36,0,7);ctx.fill();
+  const hz=3.1*TILE+oy;
+  // 먼 왕국 실루엣 (탑과 돔)
+  ctx.fillStyle=shade(nt.c,-8);
+  for(let i=0;i<8;i++){const bx=(1.2+i*1.9)*TILE+ox, bw=1.15*TILE, bh=(0.9+((i*37)%5)*0.28)*TILE;
+    ctx.fillRect(bx-bw/2,hz-bh,bw,bh);
+    ctx.beginPath();ctx.moveTo(bx-bw/2-5,hz-bh);ctx.lineTo(bx+bw/2+5,hz-bh);ctx.lineTo(bx,hz-bh-24);ctx.closePath();ctx.fill();}
+  // 큰 국기
+  ctx.font='52px serif';ctx.textAlign='center';
+  ctx.fillText(nt.e,8*TILE+ox,hz-2.0*TILE+Math.sin(T*1.5)*4);
+  // 바다
+  const plazaY=5.3*TILE+oy;
+  const sea=ctx.createLinearGradient(0,hz,0,plazaY);
+  sea.addColorStop(0,'#7ccaf2');sea.addColorStop(1,'#3f9fd9');
+  ctx.fillStyle=sea;ctx.fillRect(ox,hz,PW*TILE,plazaY-hz);
+  ctx.fillStyle='rgba(255,255,255,.3)';
+  for(let i=0;i<4;i++){const wy=hz+(i+1)*((plazaY-hz)/5);ctx.fillRect(ox,wy+Math.sin(T*2+i)*2,PW*TILE,2);}
+  // 항구 광장 (돌바닥)
+  ctx.fillStyle='#e7d9c3';ctx.fillRect(ox,plazaY,PW*TILE,PH*TILE-(plazaY-oy));
+  ctx.strokeStyle='rgba(150,120,90,.18)';ctx.lineWidth=1;
+  for(let y=5.3;y<PH;y+=0.9){ctx.beginPath();ctx.moveTo(ox,y*TILE+oy);ctx.lineTo(ox+PW*TILE,y*TILE+oy);ctx.stroke();}
+  for(let x=0;x<=PW;x+=1.2){ctx.beginPath();ctx.moveTo(x*TILE+ox,plazaY);ctx.lineTo(x*TILE+ox,PH*TILE+oy);ctx.stroke();}
+  ctx.fillStyle='#b98d5f';ctx.fillRect(ox,plazaY-6,PW*TILE,8); // 부두 난간
+  // 귀항 배
+  drawEmoji('⛵',PSHIP.px,4.85*TILE,50,0);
+  {const x=PSHIP.px-cam.x,y=PSHIP.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('⛵ 우리 왕국으로',x,y+18);}
+  // 무역 노점
+  drawEmoji('🏪',PSTALL.px,PSTALL.py,38,14);
+  drawEmoji(nt.e,PSTALL.px,PSTALL.py-42+Math.sin(T*2)*2,20,0);
+  {const x=PSTALL.px-cam.x,y=PSTALL.py-cam.y;
+   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText(nt.n+' 상점',x,y+22);
+   const reqAvail=!reqDone(nt);
+   if(reqAvail){const by=y-52+Math.sin(T*3)*2.5;ctx.fillStyle='#fffdf8';ctx.strokeStyle='#ffd9e7';ctx.lineWidth=2.5;
+     ctx.beginPath();ctx.arc(x,by,11,0,7);ctx.fill();ctx.stroke();ctx.font='12px serif';ctx.fillText('📜',x,by+4);}}
+  // 광장 장식
+  drawEmoji('📦',7.2*TILE,6.3*TILE,24,10);
+  drawEmoji('🏮',1.6*TILE,6.0*TILE,24,10);
+  drawEmoji('🏮',14.4*TILE,6.0*TILE,24,10);
+  drawEmoji('🌴',1.4*TILE,8.9*TILE,30,12);
+  drawEmoji('🌴',14.6*TILE,8.9*TILE,30,12);
+  // 이름 배너 (화면 상단)
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  const label=nt.e+' '+nt.n+' 항구';
+  ctx.font='16px Jua, sans-serif';const lw=ctx.measureText(label).width+28;
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(W/2-lw/2,10,lw,30,15);ctx.fill();}else ctx.fillRect(W/2-lw/2,10,lw,30);
+  ctx.fillStyle=nt.c;ctx.textAlign='center';ctx.fillText(label,W/2,31);
+}
 /* ---- 길 안내 화살표 & 미니맵 ---- */
 function drawGuide(){
   if(uiOpen>0)return;
@@ -3407,6 +3506,16 @@ function drawMini(){
     mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(rxm(player.x),rym(player.y),2.6,0,7);mm.fill();mm.stroke();
     return;
   }
+  if(world==='port'){
+    const nt=nation();
+    mm.fillStyle='#7ccaf2';mm.fillRect(4,6,112,80);
+    const sc=Math.min(112/(PW*TILE),80/(PH*TILE)), pxm=v=>4+v*sc, pym=v=>6+v*sc;
+    mm.fillStyle='#e7d9c3';mm.fillRect(4,pym(5.3*TILE),112,80-(pym(5.3*TILE)-6));
+    mm.fillStyle=nt.c;mm.beginPath();mm.arc(pxm(PSTALL.px),pym(PSTALL.py),2.6,0,7);mm.fill();
+    mm.fillStyle='#8a6a4a';mm.beginPath();mm.arc(pxm(PSHIP.px),pym(PSHIP.py),2.4,0,7);mm.fill();
+    mm.fillStyle='#ff5f9e';mm.strokeStyle='#fff';mm.lineWidth=1.2;mm.beginPath();mm.arc(pxm(player.x),pym(player.y),2.6,0,7);mm.fill();mm.stroke();
+    return;
+  }
   // 넓어진 왕국: 공주를 따라 상하좌우로 움직이는 창
   const winX=clamp(player.x/16-60,0,Math.max(0,MAP_W*3-120));
   const winY=clamp(player.y/16-45,0,Math.max(0,MAP_H*3-90));
@@ -3437,7 +3546,6 @@ function drawMini(){
 let last=now(), tutoStep=0;
 function update(dt){
   T+=dt;
-  if(atSea)return; // 다른 왕국 항구에선 화면 고정 (무역창으로 상호작용)
   // 이동
   const canMove=uiOpen===0;
   let mvx=canMove?joy.dx:0, mvy=canMove?joy.dy:0;
@@ -3559,7 +3667,14 @@ function drawPort(nat){
 }
 function render(){
   ctx.clearRect(0,0,W,H);
-  if(atSea){ drawPort(activeNation); return; }
+  if(world==='port'){
+    drawPortWalk();
+    drawPetFollow();
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=p2.s+'px serif';ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
+    drawMini();
+    return;
+  }
   if(world==='in'){
     drawInterior();
     drawPetFollow();
