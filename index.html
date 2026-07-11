@@ -396,6 +396,7 @@ const META={
   seal:{n:'꼬마물범',i:'🦭',sell:68}, moonfish:{n:'달빛가오리',i:'🌜',sell:74}, crystalfish:{n:'수정물고기',i:'💠',sell:115},
   stoneOre:{n:'반짝 돌',i:'🪨',sell:6}, ironOre:{n:'철 원석',i:'⚙️',sell:16}, crystalOre:{n:'수정 원석',i:'🔮',sell:30},
   gem:{n:'빛나는 보석',i:'💎',sell:95},
+  stardew:{n:'별빛 이슬',i:'💧',sell:0}, evostone:{n:'진화석',i:'🔷',sell:0},
   carrotSoup:{n:'당근 수프',i:'🥣',sell:22},
   berryCake:{n:'딸기 케이크',i:'🍰',sell:40},
   mushGratin:{n:'버섯 그라탕',i:'🧀',sell:45},
@@ -520,6 +521,7 @@ const ACCS={
   gem:{n:'보석 관',charm:5,buy:180,emoji:'💎'},
   starcrown:{n:'별빛 화관',charm:6,how:'무지개 별 조각 모으기',emoji:'🌟'},
   medal:{n:'여행자 훈장',charm:7,how:'일곱 왕국 스탬프 모으기',emoji:'🎖️'},
+  amulet:{n:'빛의 목걸이',charm:8,how:'드워프와 엘프의 이야기 완성',emoji:'📿'},
 };
 const STATN={charm:{n:'매력',e:'💖',c:'#ff8fb8'},wis:{n:'지혜',e:'📖',c:'#8fb8ff'},
   kind:{n:'친절',e:'🌷',c:'#7ed6a5'},lead:{n:'리더십',e:'👑',c:'#ffc94d'}};
@@ -772,6 +774,18 @@ const FURN={
   garland:{n:'리본 가랜드',e:'🎀',cost:30,sz:32,wall:true}, wreath:{n:'꽃 리스',e:'🌸',cost:28,sz:30,wall:true},
   star:{n:'별 조명',e:'⭐',cost:50,sz:28,wall:true,bob:true}, clock:{n:'시계',e:'🕰️',cost:40,sz:26,wall:true},
 };
+const ROOMSETS=[
+  {id:'dream', n:'꿈나라 세트', need:['bed','rug','lamp'],       desc:'방에 올 때마다 가끔 아침 선물 🪙'},
+  {id:'tea',   n:'티타임 세트', need:['teatable','cake','vase'], desc:'요리·축복 버프 +15초'},
+  {id:'study', n:'서재 세트',   need:['books','clock','painting'],desc:'경험치 +10%'},
+  {id:'starry',n:'별밤 세트',   need:['star','mirror','garland'],desc:'매력 +2'},
+];
+function setOn(id){
+  if(!S)return false;
+  const st=ROOMSETS.find(x=>x.id===id); if(!st)return false;
+  const a=Object.values(S.room||{}).concat(Object.values(S.roomWall||{}));
+  return st.need.every(k=>a.includes(k));
+}
 const WALLS={
   pink:{n:'분홍 꽃무늬',c1:'#f2dcec',c2:'#e6c4dc',motif:'🌸',cost:0},
   mint:{n:'민트 줄무늬',c1:'#ddf2e6',c2:'#c2e6d2',cost:40},
@@ -1095,7 +1109,7 @@ function freshState(){return{
   buff:null, cookdex:{},
   room:{}, roomOwned:['bed','rug'], roomInv:{bed:1,rug:1}, roomGridV2:true, portAt:null,
   roomWall:{}, roomDeco:{wall:'pink',floor:'wood'}, ownedWalls:['pink'], ownedFloors:['wood'],
-  stamps:{},
+  stamps:{}, raceQ:0,
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function inv(k){return S.inv[k]||0;}
@@ -1194,6 +1208,7 @@ function applyLoaded(d){
   S.roomGridV2=true;
   if(!S.ownedWalls)S.ownedWalls=['pink']; if(!S.ownedFloors)S.ownedFloors=['wood'];
   if(!S.stamps)S.stamps={};
+  if(typeof S.raceQ!=='number')S.raceQ=0;
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
     const nt=NATIONS.find(x=>x.id===S.portAt);
@@ -1679,6 +1694,7 @@ function applyReward(r){
   updateHUD(); saveGame();
 }
 function addXp(n){
+  if(setOn('study'))n=Math.max(1,Math.round(n*1.1));
   S.xp+=n;
   while(S.level<LEVEL_XP.length&&S.xp>=LEVEL_XP[S.level]){
     S.level++; levelUp();
@@ -1901,7 +1917,8 @@ function gearCharm(){
   g+=(HAIRSTYLES[S.outfit.hairstyle]&&HAIRSTYLES[S.outfit.hairstyle].charm)||0;
   g+=(SHOES[S.outfit.shoes]&&SHOES[S.outfit.shoes].charm)||0;
   g+=buffCharm();
-  if(S.outfit.wings&&WINGS[S.outfit.wings])g+=WINGS[S.outfit.wings].charm; return g;
+  if(S.outfit.wings&&WINGS[S.outfit.wings])g+=WINGS[S.outfit.wings].charm;
+  if(setOn('starry'))g+=2; return g;
 }
 function openStats(){
   let html='<div class="card" style="text-align:center"><div style="font-size:15px">👸 '+pname()+' 공주 · Lv.'+S.level+'</div>'
@@ -2161,7 +2178,7 @@ function openCookpot(){
   mbody.querySelectorAll('[data-eat]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.eat; if(inv(k)<=0)return;
     addInv(k,-1); const r=RECIPES[k], bf=BUFFS[r.buff];
-    const bd=r.dur+cookDurBonus();
+    const bd=r.dur+cookDurBonus()+(setOn('tea')?15:0);
     S.buff={type:r.buff,until:now()+bd*1000};
     sYes();confetti(10);
     banner(bf.e+' '+bf.n,META[k].n+'을(를) 먹었어요!');
@@ -2230,6 +2247,14 @@ function openRoomEditor(){
       html+='<button class="pillbtn gray" id="rstore" style="width:100%;margin:2px 0 6px">📦 보관함에 넣기</button>';
     }
     // 상점 (같은 가구도 여러 개 살 수 있어요)
+    if(!isWall){
+      html+='<div class="small" style="margin:8px 4px 4px">🎀 가구 세트 효과 <span style="color:#a98">· 바닥/벽 어디든 놓으면 발동!</span></div>';
+      for(const st of ROOMSETS){
+        const on2=setOn(st.id);
+        html+='<div class="small" style="margin:2px 6px;color:'+(on2?'#2e9e6b':'#b3a3ad')+'">'
+          +(on2?'✅ ':'🔒 ')+'<b>'+st.n+'</b> ('+st.need.map(k=>FURN[k].e).join('')+') — '+st.desc+'</div>';
+      }
+    }
     const shop=Object.keys(FURN).filter(k=>!!FURN[k].wall===isWall&&FURN[k].cost>0);
     html+='<div class="small" style="margin:8px 4px 4px">🛒 '+(isWall?'벽 장식':'가구')+' 상점 <span style="color:#a98">· 하나 사면 실물 1개!</span></div>';
     for(const k of shop){const f=FURN[k];
@@ -3411,9 +3436,10 @@ function openPets(){
     });
     if(evoP)html+='<div class="small" style="color:#c98a2a;margin:2px 0">⭐ 진화: 코인 2배 · 이동/낚시/명성 혜택 강화!</div>';
     if(!evoP&&lv>=10){
-      const canEvo=inv('gem')>=2&&S.coins>=300;
+      const canEvo=inv('evostone')>=1||(inv('gem')>=2&&S.coins>=300);
       html+='<div style="margin-top:6px;padding-top:6px;border-top:1.5px dashed #f0d8e4">'
-        +'<div class="small" style="margin-bottom:4px">⭐ <b>진화 가능!</b> 재료: 💎 보석 2 (보유 '+inv('gem')+') + 🪙 300</div>'
+        +'<div class="small" style="margin-bottom:4px">⭐ <b>진화 가능!</b> 🔷 진화석 1 (보유 '+inv('evostone')+') <span style="color:#a98">또는</span> 💎 보석 2 + 🪙 300</div>'
+        +'<div class="small" style="color:#a98;margin-bottom:4px">🔷 진화석은 광산의 드워프에게 의뢰해요</div>'
         +'<button class="pillbtn'+(canEvo?' mint':' gray')+'" id="petevo" style="width:100%">⭐ 진화하기</button></div>';
     }else if(!evoP){
       html+='<div class="small" style="color:#a98;margin-top:4px">Lv.10이 되면 💎보석으로 진화할 수 있어요!</div>';
@@ -3436,8 +3462,10 @@ function openPets(){
   if(pev)pev.addEventListener('pointerdown',()=>{
     const pt2=S.pets[S.activePet];
     if(!pt2||pt2.lv<10||pt2.evo)return;
-    if(inv('gem')<2||S.coins<300){toast('💎 보석 2개와 🪙 300이 필요해요!');sNo();return;}
-    addInv('gem',-2); S.coins-=300; pt2.evo=true;
+    if(inv('evostone')>=1){addInv('evostone',-1);}
+    else if(inv('gem')>=2&&S.coins>=300){addInv('gem',-2);S.coins-=300;}
+    else{toast('🔷 진화석 1개 또는 💎 보석 2개+🪙 300이 필요해요!');sNo();return;}
+    pt2.evo=true;
     sLevel(); confetti(45);
     banner('⭐ 진화!','전설의 벗이 되었어요!');
     updateHUD(); saveGame(); openPets();
@@ -3588,6 +3616,17 @@ function openElf(){
       [{label:'만나서 반가워요! 🧝',fn:()=>{applyReward({coins:30,stats:{wis:2,kind:1},xp:20});}}]);
     return;
   }
+  if(S.raceQ===1){
+    const canDew=inv('moonfish')>=1&&inv('flower')>=5;
+    dialog(ELF.e,ELF.n,['토르린이 빛의 목걸이를 다시 만들려 하는군요!','별빛 이슬을 만들려면 🌜 달빛가오리 1마리와 🌸 꽃 5송이가 필요해요.','지금: 🌜 '+inv('moonfish')+'/1 · 🌸 '+inv('flower')+'/5'],
+      canDew?[{label:'재료 건네기 🎁',fn:()=>{
+        addInv('moonfish',-1);addInv('flower',-5);addInv('stardew',1);
+        S.raceQ=2; sYes(); confetti(16); spark(player.x,player.y-30,'💧');
+        toast('💧 별빛 이슬을 받았어요! 토르린에게 가져가요');
+        applyReward({stats:{kind:2},xp:30}); saveGame();
+      }},{label:'아직이에요',gray:true}]:undefined);
+    return;
+  }
   if(now()-(S.elfAt||0)<120000){
     dialog(ELF.e,ELF.n,['바람이 아직 축복을 모으고 있어요…','잠시 후 다시 와 주세요 🍃']); return;
   }
@@ -3596,7 +3635,7 @@ function openElf(){
       S.elfAt=now();
       const bs=['speed','luck','renown','charm','yield'];
       const b=bs[Math.floor(Math.random()*bs.length)];
-      S.buff={type:b,until:now()+(75+cookDurBonus())*1000};
+      S.buff={type:b,until:now()+(75+cookDurBonus()+(setOn('tea')?15:0))*1000};
       sYes(); confetti(14);
       banner(BUFFS[b].e+' '+BUFFS[b].n,'엘프의 축복! '+BUFFS[b].desc);
       petXpGain(3); saveGame();
@@ -3667,7 +3706,14 @@ const RPC=5, RPR=3; // 가구 배치 격자 (열×행) — 큼직한 칸
 function cellX(gx){return (0.5+(+gx+0.5)*((RW-1)/RPC))*TILE;}
 function cellY(gy){return [2.64,4.22,5.88][+gy]*TILE;}
 function rowScale(gy){return [0.84,1.0,1.16][+gy]||1;}
-function enterRoom(){ if(uiOpen>0)return; world='room'; player.x=RW/2*TILE; player.y=(RH-1.5)*TILE; sYes(); toast('🛏️ 내 방에 왔어요! 🎨 이젤에서 꾸며 봐요'); }
+function enterRoom(){ if(uiOpen>0)return; world='room'; player.x=RW/2*TILE; player.y=(RH-1.5)*TILE; sYes(); toast('🛏️ 내 방에 왔어요! 🎨 이젤에서 꾸며 봐요');
+  if(setOn('dream')&&now()-(S.roomGiftAt||0)>300000){
+    S.roomGiftAt=now(); const g2=5+Math.floor(Math.random()*11);
+    S.coins+=g2; sCoin(); confetti(10);
+    setTimeout(()=>toast('🌅 꿈나라 세트의 아침 선물! 🪙 +'+g2),600);
+    updateHUD(); saveGame();
+  }
+}
 function exitRoom(){ world='out'; player.x=CASTLE.x+CASTLE.w/2; player.y=CASTLE.y+CASTLE.h+30; sTap(); toast('🌳 밖으로 나왔어요'); }
 function blockedRoom(px,py){
   if(px<TILE*0.6||px>RW*TILE-TILE*0.6)return true;
@@ -3902,11 +3948,29 @@ function openDwarf(){
     return;
   }
   let html='<div class="card rowline"><div style="font-size:30px">🧔</div><div class="grow"><b>'+DWARF.n+'</b><div class="small">"좋은 원석은 정직한 땀에서 나오는 법!"</div></div></div>';
+  // 종족 연계 퀘스트: 빛의 목걸이
+  if(S.raceQ===0&&S.met.elf){
+    html+='<div class="card" style="background:#fff8e0"><div>📿 <b>특별한 이야기</b></div><div class="small">토르린이 엘프에 대해 하고 싶은 말이 있어 보여요…</div>'
+      +'<button class="pillbtn" id="dwstory" style="margin-top:4px">이야기 듣기</button></div>';
+  }else if(S.raceQ===1){
+    html+='<div class="card" style="background:#fff8e0"><div>📿 빛의 목걸이</div><div class="small">🧝 엘프 아리엘라에게 <b>별빛 이슬 💧</b>을 부탁해 보세요!</div></div>';
+  }else if(S.raceQ===2){
+    const canNeck=inv('stardew')>=1&&inv('crystalOre')>=5&&inv('gem')>=1;
+    html+='<div class="card" style="background:#fff8e0"><div>📿 <b>빛의 목걸이 만들기</b></div>'
+      +'<div class="small" style="color:'+(canNeck?'#59c97b':'#c08a8a')+'">💧 별빛 이슬 1 (보유 '+inv('stardew')+') + 🔮 수정 원석 5 (보유 '+inv('crystalOre')+') + 💎 보석 1 (보유 '+inv('gem')+')</div>'
+      +'<button class="pillbtn'+(canNeck?' mint':' gray')+'" id="dwneck" style="margin-top:4px">함께 만들기 ⚒️</button></div>';
+  }else if(S.raceQ>=3){
+    html+='<div class="small" style="margin:4px;color:#c98a2a">📿 함께 만든 빛의 목걸이가 왕국을 지켜주고 있어요</div>';
+  }
   html+='<div class="small" style="margin:8px 4px 4px">⚒️ 보석 가공</div>';
   const can=inv('crystalOre')>=3&&inv('ironOre')>=2;
   html+='<div class="card rowline"><div style="font-size:26px">💎</div>'
     +'<div class="grow"><div>빛나는 보석 만들기</div><div class="small" style="color:'+(can?'#59c97b':'#c08a8a')+'">🔮 수정 원석 3 (보유 '+inv('crystalOre')+') + ⚙️ 철 원석 2 (보유 '+inv('ironOre')+')</div></div>'
     +'<button class="pillbtn'+(can?' mint':' gray')+'" id="dwcraft">가공</button></div>';
+  const canEs=inv('starfish')>=1&&inv('crystalOre')>=3&&S.coins>=100;
+  html+='<div class="card rowline"><div style="font-size:26px">🔷</div>'
+    +'<div class="grow"><div>진화석 만들기 <span class="small">(펫 진화 재료)</span></div><div class="small" style="color:'+(canEs?'#59c97b':'#c08a8a')+'">🌟 별빛물고기 1 (보유 '+inv('starfish')+') + 🔮 수정 원석 3 (보유 '+inv('crystalOre')+') + 🪙 100</div></div>'
+    +'<button class="pillbtn'+(canEs?' mint':' gray')+'" id="dwevo">가공</button></div>';
   html+='<div class="small" style="margin:8px 4px 4px">🪙 광석 팔기</div>';
   for(const k of ['stoneOre','ironOre','crystalOre','gem']){
     const c=inv(k); if(c<=0)continue;
@@ -3923,6 +3987,27 @@ function openDwarf(){
     addInv('crystalOre',-3);addInv('ironOre',-2);addInv('gem',1);
     sLevel();confetti(20);spark(player.x,player.y-30,'💎');
     toast('💎 빛나는 보석 완성!');applyReward({xp:15});saveGame();openDwarf();
+  });
+  const ds=$('dwstory');
+  if(ds)ds.addEventListener('pointerdown',()=>{
+    S.raceQ=1; saveGame(); sTap(); closeModal();
+    dialog(DWARF.e,DWARF.n,['사실… 엘프들과 우리 드워프는 오래전 함께 <빛의 목걸이>를 만들었지.','목걸이가 있으면 왕국에 어둠이 오지 못한다네.','엘프 아리엘라에게 💧 별빛 이슬을 받아다 주게. 내가 다시 만들어 보겠네!']);
+  });
+  const dn=$('dwneck');
+  if(dn)dn.addEventListener('pointerdown',()=>{
+    if(!(inv('stardew')>=1&&inv('crystalOre')>=5&&inv('gem')>=1)){toast('재료가 아직 부족해요!');sNo();return;}
+    addInv('stardew',-1);addInv('crystalOre',-5);addInv('gem',-1);
+    S.raceQ=3; grantItem('acc_amulet'); addRenown(30);
+    sLevel(); confetti(50);
+    banner('📿 빛의 목걸이 완성!','드워프와 엘프의 우정이 왕국을 지켜요');
+    applyReward({coins:150,stats:{wis:3,kind:3},xp:100}); saveGame(); openDwarf();
+  });
+  const de2=$('dwevo');
+  if(de2)de2.addEventListener('pointerdown',()=>{
+    if(!(inv('starfish')>=1&&inv('crystalOre')>=3&&S.coins>=100)){toast('재료가 부족해요!');sNo();return;}
+    addInv('starfish',-1);addInv('crystalOre',-3);S.coins-=100;addInv('evostone',1);
+    sLevel();confetti(18);spark(player.x,player.y-30,'🔷');
+    toast('🔷 진화석 완성! 펫 메뉴에서 진화해요');updateHUD();saveGame();openDwarf();
   });
   mbody.querySelectorAll('[data-dwsell]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.dwsell, c=inv(k); if(c<=0)return;
