@@ -1346,17 +1346,27 @@ async function saveGame(){
 function exportCode(){
   try{
     const json=buildSaveJson();
-    const b=encodeURIComponent(json);
-    let bin=''; for(let i=0;i<b.length;i++)bin+=b[i];
-    const code='LUMI1:'+btoa(unescape(encodeURIComponent(json)));
-    return code;
+    // 전송 안전한 base64url (+,/,= 없음)
+    let b64=btoa(unescape(encodeURIComponent(json)));
+    b64=b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return 'LUMI1:'+b64;
   }catch(e){return null;}
 }
 function importCode(code){
   try{
-    code=(code||'').trim();
-    if(code.indexOf('LUMI1:')!==0)return false;
-    const json=decodeURIComponent(escape(atob(code.slice(6))));
+    code=(code||'');
+    // 접두어가 어디에 있든 그 뒤부터 사용
+    const i=code.indexOf('LUMI1:');
+    if(i<0)return false;
+    let b64=code.slice(i+6);
+    // 붙여넣기 중 섞인 공백·줄바꿈 모두 제거
+    b64=b64.replace(/\s+/g,'');
+    // 코드에 쓰이지 않는 문자 제거 (실수로 딸려온 문자 방지)
+    b64=b64.replace(/[^A-Za-z0-9\-_+/=]/g,'');
+    // base64url → base64 복원 + 패딩 보정
+    b64=b64.replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length%4)b64+='=';
+    const json=decodeURIComponent(escape(atob(b64)));
     const d=parseSave(json);
     if(!d)return false;
     applyLoaded(d); saveGame(); return true;
@@ -1386,7 +1396,7 @@ function openTransfer(){
     const v=$('txin').value;
     if(!v||!v.trim()){toast('붙여넣은 코드가 없어요');sNo();return;}
     if(importCode(v)){confetti(30);sLevel();closeModal();toast('✅ 불러오기 성공! 이어서 즐겨요');updateHUD();}
-    else{toast('❌ 코드가 올바르지 않아요');sNo();}
+    else{toast('❌ 코드가 올바르지 않아요. 코드 전체가 빠짐없이 복사됐는지 확인해요');sNo();}
   });
 }
 function parseSave(txt){
