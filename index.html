@@ -47,6 +47,9 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
 .mbtn:active{transform:scale(.9) translateY(2px);}
 
 /* ---------- 조작 ---------- */
+.charbtn{flex:1;max-width:120px;padding:10px 4px;border-radius:16px;border:2.5px solid #f0d8e6;background:#fff;font-size:30px;line-height:1.1;cursor:pointer;}
+.charbtn>div{font-size:13px;color:#8a6a80;margin-top:2px;}
+.charbtn.on{border-color:#ff7fb0;background:#fff0f6;box-shadow:0 2px 8px rgba(255,140,180,.25);}
 #joyzone{position:fixed;left:0;bottom:0;width:55%;height:55%;z-index:15;}
 #joybase{position:fixed;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.28);
   border:3px solid rgba(255,255,255,.6);display:none;z-index:16;pointer-events:none;}
@@ -182,7 +185,7 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
 <div id="hud">
   <div id="portrait">👸</div>
   <div id="hudinfo">
-    <div id="hudname"><span id="hname">루미</span> 공주 · Lv.<span id="hlvl">1</span></div>
+    <div id="hudname"><span id="hname">루미</span> <span id="hhon">공주</span> · Lv.<span id="hlvl">1</span></div>
     <div id="hudsub">🪙 <span id="hcoin">0</span><div id="xpwrap"><div id="xpbar"></div></div></div>
   </div>
 </div>
@@ -191,8 +194,10 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <button class="mbtn" id="btnBag">🎒</button>
   <button class="mbtn" id="btnCloset">👗</button>
   <button class="mbtn" id="btnStats">⭐</button>
+  <button class="mbtn" id="btnAchv">🏅</button>
   <button class="mbtn" id="btnPets">🐾</button>
   <button class="mbtn" id="btnRoom">🛏️</button>
+  <button class="mbtn" id="btnSync">🔄</button>
   <button class="mbtn" id="btnSave">💾</button>
 </div>
 <canvas id="mmap" width="120" height="90"></canvas>
@@ -245,7 +250,12 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <div class="howrow"><div class="howic">🗺️</div><div>왕국은 사방으로 넓어요! 북쪽 🌸꽃 언덕, 서쪽 🌲속삭이는 숲, 남쪽 ⛵햇살 항구를 모두 탐험해 보세요.</div></div>
   <div class="howrow"><div class="howic">🚪</div><div>동쪽은 명성이 오를 때마다 문이 열려요 — 목장·야생 초원·눈꽃 산이 기다려요!</div></div>
   <div class="howrow"><div class="howic">💾</div><div>진행은 자동 저장! 💾 버튼으로 바로 저장도 돼요</div></div>
-  <div id="namewrap"><label for="nameinput">👑 공주님의 이름을 지어 주세요</label>
+  <div id="charsel" style="margin:8px 0 4px"><div style="font-size:14px;color:#a06a86;margin-bottom:6px">🎭 캐릭터를 골라요</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button id="pickGirl" class="charbtn on">👸<div>공주</div></button>
+      <button id="pickBoy" class="charbtn">🤴<div>왕자</div></button>
+    </div></div>
+  <div id="namewrap"><label for="nameinput">👑 <span id="namelabel">공주님</span>의 이름을 지어 주세요</label>
   <input id="nameinput" maxlength="6" placeholder="예: 루미" autocomplete="off"></div>
   <button id="startbtn">모험 시작! 🌷</button>
   <button id="newbtn" style="display:none">처음부터 새로 시작 🔄</button>
@@ -406,6 +416,8 @@ const META={
   tang:{n:'열대어',i:'🐠',sell:30}, turtle:{n:'바다거북',i:'🐢',sell:55}, pearl:{n:'진주조개',i:'🦪',sell:62},
   seal:{n:'꼬마물범',i:'🦭',sell:68}, moonfish:{n:'달빛가오리',i:'🌜',sell:74}, crystalfish:{n:'수정물고기',i:'💠',sell:115},
   stoneOre:{n:'반짝 돌',i:'🪨',sell:6}, ironOre:{n:'철 원석',i:'⚙️',sell:16}, crystalOre:{n:'수정 원석',i:'🔮',sell:30},
+  L_star:{n:'별똥별 물고기',i:'💫',sell:200}, L_coral:{n:'인어의 비늘',i:'🧜',sell:200}, L_cloud:{n:'번개 잉어',i:'⚡',sell:210},
+  L_sand:{n:'황금 전갈어',i:'🦂',sell:220}, L_rainbow:{n:'무지개 고래',i:'🐋',sell:260}, L_gold:{n:'황금 용어',i:'🐉',sell:300}, L_crystal:{n:'수정 해마',i:'🔱',sell:280},
   gem:{n:'빛나는 보석',i:'💎',sell:95},
   stardew:{n:'별빛 이슬',i:'💧',sell:0}, evostone:{n:'진화석',i:'🔷',sell:0},
   carrotSoup:{n:'당근 수프',i:'🥣',sell:22},
@@ -423,6 +435,7 @@ const FISH={
   rainbow:{rar:3}, starfish:{rar:3},
   tang:{rar:1}, turtle:{rar:2}, pearl:{rar:2},
   seal:{rar:2}, moonfish:{rar:2}, crystalfish:{rar:3},
+  L_star:{rar:3}, L_coral:{rar:3}, L_cloud:{rar:3}, L_sand:{rar:3}, L_rainbow:{rar:3}, L_gold:{rar:3}, L_crystal:{rar:3},
 };
 const FISHKEYS=Object.keys(FISH).concat(['f1','f2','f3','f4']);
 // 낚시터 4곳: 물가의 x위치로 결정
@@ -434,6 +447,7 @@ const FISHZONES={
   portA: {n:'이웃 왕국 항구', pool:['minnow','crab','tang','tang','turtle','pearl']},
   portB: {n:'웅장한 왕국 항구', pool:['squid','octo','seal','moonfish','moonfish','crystalfish']},
 };
+const NATION_LEGEND={star:'L_star',coral:'L_coral',cloud:'L_cloud',sand:'L_sand',rainbow:'L_rainbow',gold:'L_gold',crystal:'L_crystal'};
 const FRAR=[
   {n:'일반',c:'#7fae55',zone:0.26,spd:3.0},
   {n:'레어',c:'#4d9be6',zone:0.185,spd:3.9},
@@ -441,7 +455,11 @@ const FRAR=[
   {n:'전설',c:'#e6a817',zone:0.08,spd:6.0},
 ];
 function fishZoneAt(){
-  if(world==='port')return nation().tier===1?'portB':'portA';
+  if(world==='port'){
+    const lg=NATION_LEGEND[nation().id];
+    if(lg&&Math.random()<0.08){FISHZONES._legend={n:'전설의 물결',pool:[lg]};return '_legend';}
+    return nation().tier===1?'portB':'portA';
+  }
   const tx=player.x/TILE;
   if(tx>=GATE3_X)return 'ice';
   if(tx>=GATE2_X)return 'lake';
@@ -470,6 +488,7 @@ const DRESSES={
   emerald:{n:'에메랄드 드레스',c:'#3fb98a',charm:5,buy:140},
   gold2:{n:'황금 드레스',c:'#f4c542',charm:6,buy:220},
   rose:{n:'장미 드레스',c:'#e86f9e',charm:6,buy:220},
+  legend:{n:'전설의 드레스',c:'#fff0b0',charm:12,how:'전설 유물 완성',shimmer:true,legend:true},
 };
 const HAIRS={
   brown:{n:'갈색 머리',c:'#8a5a3b',charm:0,how:'처음부터'},
@@ -497,6 +516,7 @@ const SHOES={
   gold:{n:'황금 구두',c:'#f4c542',charm:3,buy:120},
   mint:{n:'민트 구두',c:'#7ed6b0',charm:2,buy:70},
   purple:{n:'보라 구두',c:'#a97ee0',charm:2,buy:70},
+  legend:{n:'전설의 구두',c:'#ffe08a',charm:6,how:'전설 유물',legend:true},
 };
 const WINGS={
   butterfly:{n:'나비 날개',charm:3,how:'레벨 5 달성',c1:'#ffffff',c2:'#ffd9e7',line:'#ffc3d9'},
@@ -531,8 +551,19 @@ const ACCS={
   butterfly:{n:'나비 핀',charm:4,buy:120,emoji:'🦋'},
   gem:{n:'보석 관',charm:5,buy:180,emoji:'💎'},
   starcrown:{n:'별빛 화관',charm:6,how:'무지개 별 조각 모으기',emoji:'🌟'},
-  medal:{n:'여행자 훈장',charm:7,how:'일곱 왕국 스탬프 모으기',emoji:'🎖️'},
+  medal:{n:'여행자 훈장',charm:9,how:'일곱 왕국 스탬프 모으기',emoji:'🎖️',perk:'명성 획득 +25%, 항구 판매가 +15%'},
   amulet:{n:'빛의 목걸이',charm:8,how:'드워프와 엘프의 이야기 완성',emoji:'📿'},
+  legendcrown:{n:'전설의 왕관',charm:12,how:'전설 유물',emoji:'👑',legend:true},
+  tophat:{n:'신사 모자',charm:3,emoji:'🎩',hat:true,buy:130},
+  cap:{n:'멋쟁이 캡',charm:2,emoji:'🧢',hat:true,buy:90},
+  explorer:{n:'탐험가 모자',charm:3,emoji:'🤠',hat:true,buy:150},
+  knight:{n:'왕자 투구',charm:5,emoji:'⛑️',hat:true,buy:220},
+};
+const WANDS={
+  legend:{n:'전설의 요술봉',charm:8,how:'전설 유물',e:'🌟',stick:'#e8c86a',star:'#ffe36b',spark:true,legend:true},
+};
+const GLOVES={
+  legend:{n:'전설의 장갑',charm:6,how:'전설 유물',c:'#fff0c0',legend:true},
 };
 const STATN={charm:{n:'매력',e:'💖',c:'#ff8fb8'},wis:{n:'지혜',e:'📖',c:'#8fb8ff'},
   kind:{n:'친절',e:'🌷',c:'#7ed6a5'},lead:{n:'리더십',e:'👑',c:'#ffc94d'}};
@@ -551,7 +582,7 @@ const LV_PERKS={
 function lvSpeedMul(){return S&&S.level>=12?1.06:1;}
 function forageCdMul(){return S&&S.level>=15?0.8:1;}
 function sellMul(){let m=1;if(S&&S.level>=18)m*=1.1;if(S&&curRank()>=5)m*=1.1;return m;}
-function coinMul(){return S&&curRank()>=7?1.1:1;}
+function coinMul(){let m=1;if(S&&curRank()>=7)m*=1.1;m*=legendCoinMul();return m;}
 function lvFishBonus(){return S&&S.level>=21?0.02:0;}
 function cookDurBonus(){return S&&S.level>=24?30:0;}
 function growMul(){let m=1;if(S&&S.level>=27)m*=0.85;if(S&&curRank()>=6)m*=0.85;return m;}
@@ -741,7 +772,7 @@ function nearNations(){return NATIONS.filter(nt=>nt.tier===0&&nationUnlocked(nt)
 function curVisitor(){const nn=nearNations();return nn.length?nn[tradeBucket()%nn.length]:NATIONS[0];}
 let activeNation=null, atSea=false;
 function nation(){return activeNation||curVisitor();}
-function tradePrice(k){const m=nation().demand[k]||1; return Math.max(1,Math.round((META[k].sell||0)*m*sellMul()*coinMul()));}
+function tradePrice(k){const m=nation().demand[k]||1; return Math.max(1,Math.round((META[k].sell||0)*m*sellMul()*coinMul()*medalSellMul()));}
 function reqDone(nat){nat=nat||nation();return S.trade&&S.trade.done&&S.trade.done[nat.id]===tradeBucket();}
 const VOYAGE_MIN=40; // 명성 40부터 다른 왕국로 항해 가능
 const TRADER={e:'⛵',n:'무역선'};
@@ -812,6 +843,11 @@ const FLOORS={
 };
 const COOKPOT={e:'🍳',n:'요리솥',tx:OX+23,ty:OY+9.5};
 COOKPOT.px=COOKPOT.tx*TILE+24; COOKPOT.py=COOKPOT.ty*TILE+30;
+function legendSetOn(){const o=S&&S.outfit;return !!(o&&o.dress==='legend'&&o.shoes==='legend'&&o.acc==='legendcrown'&&o.wand==='legend'&&o.gloves==='legend');}
+function legendCoinMul(){return legendSetOn()?1.2:1;}
+function hasMedal(){return !!(S&&S.owned&&S.owned.accs&&S.owned.accs.includes('medal'));}
+function medalRenownMul(){return hasMedal()?1.25:1;}
+function medalSellMul(){return (hasMedal()&&world==='port')?1.15:1;}
 function activeBuff(){ if(S&&S.buff){ if(now()<S.buff.until)return S.buff.type; S.buff=null; } return null; }
 function buffSpeedMul(){return activeBuff()==='speed'?1.18:1;}
 function buffRenownMul(){return activeBuff()==='renown'?1.5:1;}
@@ -1104,11 +1140,11 @@ const mmBase=document.createElement('canvas');mmBase.width=MAP_W*3;mmBase.height
 /* ============ 상태 ============ */
 let S=null;
 function freshState(){return{
-  v:1, coins:20, xp:0, level:1,
+  v:1, coins:20, xp:0, level:1, sex:'girl',
   stats:{charm:1,wis:1,kind:1,lead:1},
   inv:{carrotSeed:3,strawSeed:1},
-  outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false},
-  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:[]},
+  outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false,wand:false,gloves:false},
+  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:[],wands:[],gloves:[]},
   q:{}, deerTold:{}, repeats:0,
   plots:PLOT_DEF.map(()=>({state:'empty',crop:null,elapsed:0})),
   forage:FORAGE_DEF.map(()=>0), // 남은 리스폰(ms), 0이면 있음
@@ -1120,9 +1156,171 @@ function freshState(){return{
   buff:null, cookdex:{},
   room:{}, roomOwned:['bed','rug'], roomInv:{bed:1,rug:1}, roomGridV2:true, portAt:null,
   roomWall:{}, roomDeco:{wall:'pink',floor:'wood'}, ownedWalls:['pink'], ownedFloors:['wood'],
-  stamps:{}, raceQ:0,
+  stamps:{}, raceQ:0, legendex:{}, legendClaim:{},
+  achv:{}, titles:[], title:null, gemEver:false,
+  daily:null, attLast:null, attStreak:0, attToday:false,
 };}
 function pname(){return (S&&S.name)?S.name:'루미';}
+function isBoy(){return !!(S&&S.sex==='boy');}
+function hon(){return isBoy()?'왕자':'공주';}
+function sexEmoji(){return isBoy()?'🤴':'👸';}
+/* ===== 칭호 & 업적 ===== */
+const TITLES={
+  novice:{e:'🌱',n:'새내기 공주'},
+  angler:{e:'🎣',n:'낚시왕'},
+  seamaster:{e:'🌊',n:'바다의 지배자'},
+  petpal:{e:'🐾',n:'동물들의 친구'},
+  petking:{e:'👑',n:'동물의 왕'},
+  chef:{e:'🍳',n:'요리 명장'},
+  traveler:{e:'🧭',n:'대탐험가'},
+  legendfisher:{e:'💫',n:'전설의 낚시꾼'},
+  miner:{e:'⛏️',n:'보석 광부'},
+  decorator:{e:'🎀',n:'인테리어 디자이너'},
+  diplomat:{e:'🤝',n:'종족의 벗'},
+  legend:{e:'🌟',n:'전설의 여왕'},
+  ruler:{e:'👸',n:'별들의 여왕'},
+};
+function fishTotal(){return Object.keys(FISH).length;}
+function fishGot(){return Object.keys(FISH).filter(k=>S.fishdex&&S.fishdex[k]).length;}
+function petTotal(){return Object.keys(PETSPEC).length;}
+function petGot(){return Object.keys(PETSPEC).filter(k=>S.dex&&S.dex[k]).length;}
+function cookGot(){return Object.keys(RECIPES).filter(k=>S.cookdex&&S.cookdex[k]).length;}
+function legendGot(){return legendCount();}
+function petEvoAny(){return !!(S.pets&&S.pets.some(p=>p&&p.evo));}
+function roomSetAny(){return ROOMSETS.some(st=>setOn(st.id));}
+const ACHV=[
+  {id:'first', e:'🌱', n:'모험의 시작', d:'게임 시작!', title:'novice', chk:()=>true, coins:20},
+  {id:'lv10', e:'⭐', n:'어엿한 공주', d:'레벨 10 달성', chk:()=>S.level>=10, coins:50},
+  {id:'lv20', e:'🌟', n:'존경받는 공주', d:'레벨 20 달성', chk:()=>S.level>=20, coins:120},
+  {id:'lv30', e:'👑', n:'전설의 공주', d:'레벨 30 달성', title:'ruler', chk:()=>S.level>=30, coins:300},
+  {id:'fishhalf', e:'🐟', n:'물고기 애호가', d:'물고기 도감 절반', chk:()=>fishGot()>=Math.ceil(fishTotal()/2), coins:60},
+  {id:'fishall', e:'🎣', n:'물고기 도감 완성', d:'모든 물고기 발견', title:'angler', chk:()=>fishGot()>=fishTotal(), coins:200},
+  {id:'legendfish', e:'💫', n:'전설을 낚다', d:'전설 물고기 전부', title:'legendfisher', chk:()=>legendGot()>=NATIONS.length, coins:250},
+  {id:'pethalf', e:'🐰', n:'동물 친구들', d:'펫 도감 절반', chk:()=>petGot()>=Math.ceil(petTotal()/2), coins:80},
+  {id:'petall', e:'🐾', n:'펫 도감 완성', d:'모든 동물 발견', title:'petking', chk:()=>petGot()>=petTotal(), coins:250},
+  {id:'petevo', e:'⭐', n:'진화의 순간', d:'펫을 진화시킴', title:'petpal', chk:()=>petEvoAny(), coins:100},
+  {id:'cookall', e:'🍱', n:'요리 마스터', d:'모든 요리 발견', title:'chef', chk:()=>cookGot()>=Object.keys(RECIPES).length, coins:150},
+  {id:'stampall', e:'🎖️', n:'세계 일주', d:'일곱 왕국 스탬프', title:'traveler', chk:()=>Object.keys(S.stamps||{}).length>=NATIONS.length, coins:150},
+  {id:'gem', e:'💎', n:'보석 세공사', d:'빛나는 보석 획득', title:'miner', chk:()=>!!(S.gemEver), coins:80},
+  {id:'set', e:'🎀', n:'꾸미기 달인', d:'가구 세트 완성', title:'decorator', chk:()=>roomSetAny(), coins:80},
+  {id:'races', e:'🤝', n:'종족의 벗', d:'드워프와 엘프를 만남', title:'diplomat', chk:()=>!!(S.met&&S.met.dwarf&&S.met.elf), coins:120},
+  {id:'amulet', e:'📿', n:'빛의 수호자', d:'빛의 목걸이 완성', chk:()=>S.raceQ>=3, coins:150},
+  {id:'legendset', e:'👗', n:'전설의 유물', d:'전설 아이템 획득', title:'legend', chk:()=>(S.legendClaim&&Object.keys(S.legendClaim).length>=5), coins:400},
+  {id:'rank7', e:'🏰', n:'별들의 왕국', d:'왕국 최고 등급', chk:()=>curRank()>=7, coins:300},
+];
+let _achvT=-1e9;
+function scanAchv(force){
+  if(!S)return; if(!S.achv)S.achv={};
+  const t=now(); if(!force&&t-_achvT<800)return; _achvT=t;
+  for(const a of ACHV){
+    if(S.achv[a.id])continue;
+    let ok=false; try{ok=a.chk();}catch(e){}
+    if(ok){
+      S.achv[a.id]=1;
+      if(a.title&&!S.titles.includes(a.title)){S.titles.push(a.title); if(!S.title)S.title=a.title;}
+      if(a.coins){S.coins+=a.coins;}
+      confetti(24); sLevel();
+      banner('🏅 업적 달성! '+a.n, a.d+(a.title?' · 새 칭호: '+TITLES[a.title].e+TITLES[a.title].n:'')+(a.coins?' · 🪙+'+a.coins:''));
+    }
+  }
+}
+function titleStr(){const t=S&&S.title&&TITLES[S.title]; return t?(t.e+' '+t.n):'';}
+/* ===== 계절 & 낮밤 ===== */
+const SEASONS=[
+  {n:'봄', e:'🌸', petal:'🌸', tint:'rgba(255,220,235,0.10)'},
+  {n:'여름', e:'☀️', petal:null, tint:'rgba(255,245,200,0.06)'},
+  {n:'가을', e:'🍂', petal:'🍁', tint:'rgba(255,210,150,0.12)'},
+  {n:'겨울', e:'❄️', petal:'❄️', tint:'rgba(210,235,255,0.14)'},
+];
+function seasonIdx(){const m=new Date().getMonth()+1; if(m<=2||m===12)return 3; if(m<=5)return 0; if(m<=8)return 1; return 2;}
+function daySeg(){const h=new Date().getHours();
+  if(h>=6&&h<10)return 'morning'; if(h>=10&&h<17)return 'day'; if(h>=17&&h<20)return 'evening'; return 'night';}
+const DAYSEG={morning:{n:'아침',e:'🌅',tint:'rgba(255,210,150,0.10)'},day:{n:'낮',e:'☀️',tint:null},
+  evening:{n:'저녁',e:'🌇',tint:'rgba(255,150,90,0.16)'},night:{n:'밤',e:'🌙',tint:'rgba(40,50,110,0.30)'}};
+// 계절 보너스 (은은하게)
+function seasonForageMul(){return seasonIdx()===0?0.85:1;}   // 봄: 채집 빨리
+function seasonFishBonus(){return seasonIdx()===1?0.03:0;}   // 여름: 낚시 잘됨
+function seasonHarvestMul(){return seasonIdx()===2?0.85:1;}  // 가을: 작물 빨리
+function seasonMineBonus(){return seasonIdx()===3;}          // 겨울: 광석 더
+let _petals=[];
+function drawTimeOverlay(){
+  const seg=DAYSEG[daySeg()], se=SEASONS[seasonIdx()];
+  // 밤: 달 + 별 (하늘 영역)
+  if(daySeg()==='night'){
+    for(let i=0;i<28;i++){const sx=(i*137%W),sy=(i*71%Math.floor(H*0.4));
+      ctx.globalAlpha=.3+Math.sin(T*2+i)*.25;ctx.fillStyle='#fff';ctx.fillRect(sx,sy,1.5,1.5);}
+    ctx.globalAlpha=1;
+    ctx.save();ctx.shadowColor='#fff6d0';ctx.shadowBlur=18;ctx.font='30px serif';ctx.textAlign='center';
+    ctx.fillText('🌙',W-46,50);ctx.restore();
+  }
+  // 시간대 색조
+  if(seg.tint){ctx.fillStyle=seg.tint;ctx.fillRect(0,0,W,H);}
+  // 계절 색조
+  if(se.tint){ctx.fillStyle=se.tint;ctx.fillRect(0,0,W,H);}
+  // 계절 입자 (꽃잎/낙엽/눈)
+  if(se.petal){
+    if(_petals.length<16&&Math.random()<0.4)_petals.push({x:Math.random()*W,y:-10,s:0.3+Math.random()*0.5,dx:(Math.random()-0.5)*0.6});
+    ctx.font='14px serif';ctx.textAlign='center';
+    for(const p of _petals){p.y+=(0.4+p.s)*1.4;p.x+=p.dx+Math.sin(p.y*0.03)*0.5;
+      ctx.globalAlpha=0.75;ctx.fillText(se.petal,p.x,p.y);}
+    ctx.globalAlpha=1;
+    _petals=_petals.filter(p=>p.y<H+12);
+  }
+}
+function drawSeasonBadge(){
+  const se=SEASONS[seasonIdx()], seg=DAYSEG[daySeg()];
+  const label=se.e+' '+se.n+' · '+seg.e+' '+seg.n;
+  ctx.font='12px Jua, sans-serif';const w2=ctx.measureText(label).width+18;
+  const x=W-w2-8, y=H-30;
+  ctx.fillStyle='rgba(255,255,255,.8)';
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w2,22,11);ctx.fill();}else ctx.fillRect(x,y,w2,22);
+  ctx.fillStyle='#7a6478';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,x+w2/2,y+11);ctx.textBaseline='alphabetic';
+}
+/* ===== 일일 퀘스트 & 출석 ===== */
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+const DAILY_POOL=[
+  {id:'fish3', e:'🎣', n:'물고기 3마리 낚기', goal:3, reward:{coins:40,xp:20}},
+  {id:'forage5', e:'🌿', n:'채집 5번 하기', goal:5, reward:{coins:35,xp:20}},
+  {id:'harvest3', e:'🌾', n:'작물 3번 수확', goal:3, reward:{coins:40,xp:25}},
+  {id:'ore5', e:'⛏️', n:'광석 5개 캐기', goal:5, reward:{coins:50,xp:25}},
+  {id:'cook2', e:'🍳', n:'요리 2번 만들기', goal:2, reward:{coins:45,xp:25}},
+  {id:'water3', e:'💧', n:'밭에 물 3번 주기', goal:3, reward:{coins:30,xp:15}},
+  {id:'talk3', e:'💬', n:'친구 3명과 대화', goal:3, reward:{coins:30,xp:15}},
+  {id:'pet2', e:'🐾', n:'야생 친구 2번 만나기', goal:2, reward:{coins:40,xp:20}},
+];
+const ATT_REWARD=[
+  {coins:20}, {coins:30}, {coins:40,item:['gem',0]}, {coins:50}, {coins:60},
+  {coins:70}, {coins:100,item:['evostone',1]},
+];
+function rollDaily(){
+  const seed=todayStr(); let h=0; for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;
+  const idx=[]; const pool=DAILY_POOL.slice();
+  for(let i=0;i<3&&pool.length;i++){const j=h%pool.length; h=(h*1103515245+12345)>>>0; idx.push(pool.splice(j,1)[0]);}
+  return idx.map(d=>({id:d.id,prog:0}));
+}
+function ensureDaily(){
+  if(!S.daily||S.daily.date!==todayStr()){
+    S.daily={date:todayStr(), tasks:rollDaily(), claimed:{}};
+    // 출석 처리
+    const last=S.attLast, td=todayStr();
+    if(last!==td){
+      const y=new Date(); y.setDate(y.getDate()-1);
+      const yStr=y.getFullYear()+'-'+(y.getMonth()+1)+'-'+y.getDate();
+      S.attStreak=(last===yStr)?((S.attStreak||0)+1):1;
+      S.attLast=td; S.attToday=false;
+    }
+    saveGame();
+  }
+}
+function countTalk(id){ if(!S.daily)return; if(!S._talkedToday)S._talkedToday={}; if(S._talkedToday[id])return; S._talkedToday[id]=true; dailyProgress('talk3'); }
+function dailyProgress(kind,amt){
+  if(!S||!S.daily)return; amt=amt||1;
+  let changed=false;
+  for(const t of S.daily.tasks){ if(t.id===kind){ const g=DAILY_POOL.find(d=>d.id===kind).goal;
+    if(t.prog<g){t.prog=Math.min(g,t.prog+amt); changed=true;} } }
+  if(changed){ const anyDone=S.daily.tasks.some(t=>{const d=DAILY_POOL.find(x=>x.id===t.id);return t.prog>=d.goal&&!S.daily.claimed[t.id];});
+    if(anyDone)toast('📅 일일 퀘스트 완료! 📜에서 보상을 받아요'); saveGame(); }
+}
 function inv(k){return S.inv[k]||0;}
 function addInv(k,n){S.inv[k]=(S.inv[k]||0)+n; if(S.inv[k]<=0)delete S.inv[k];}
 function fishCount(){return FISHKEYS.reduce((a,k)=>a+inv(k),0);}
@@ -1130,24 +1328,66 @@ function fishCount(){return FISHKEYS.reduce((a,k)=>a+inv(k),0);}
 /* ---- 저장/불러오기 (클로드 저장소 + 브라우저 저장소 겸용) ---- */
 const SAVE_KEY='lumi-kingdom-save';
 let saveTimer=0;
+function buildSaveJson(){
+  const data=JSON.parse(JSON.stringify(S));
+  data.plots=S.plots.map(p=>{const q={state:p.state,crop:p.crop,elapsed:0};if(p.state==='grow')q.elapsed=now()-p.t0;return q;});
+  data.forage=FORAGE_DEF.map((f,i)=>{const u=forageUntil[i];return u>now()?Math.ceil(u-now()):0;});
+  data.animals=S.animals.map(a=>({t:a.t,pen:a.pen,slot:a.slot,fed:a.fed,ready:a.ready,elapsed:(a.fed&&!a.ready)?now()-a.t0:0}));
+  return JSON.stringify(data);
+}
 async function saveGame(){
   if(!S)return;
   let json=null;
-  try{
-    const data=JSON.parse(JSON.stringify(S));
-    // 자라는 중인 작물은 경과 시간으로 저장
-    data.plots=S.plots.map(p=>{
-      const q={state:p.state,crop:p.crop,elapsed:0};
-      if(p.state==='grow')q.elapsed=now()-p.t0;
-      return q;});
-    data.forage=FORAGE_DEF.map((f,i)=>{
-      const u=forageUntil[i]; return u>now()?Math.ceil(u-now()):0;});
-    data.animals=S.animals.map(a=>({t:a.t,pen:a.pen,slot:a.slot,fed:a.fed,ready:a.ready,
-      elapsed:(a.fed&&!a.ready)?now()-a.t0:0}));
-    json=JSON.stringify(data);
-  }catch(e){return;}
+  try{ json=buildSaveJson(); }catch(e){return;}
   if(window.storage){try{await window.storage.set(SAVE_KEY,json);}catch(e){}}
   try{localStorage.setItem(SAVE_KEY,json);}catch(e){}
+}
+// ===== 백업 코드 (다른 기기로 이어하기) =====
+function exportCode(){
+  try{
+    const json=buildSaveJson();
+    const b=encodeURIComponent(json);
+    let bin=''; for(let i=0;i<b.length;i++)bin+=b[i];
+    const code='LUMI1:'+btoa(unescape(encodeURIComponent(json)));
+    return code;
+  }catch(e){return null;}
+}
+function importCode(code){
+  try{
+    code=(code||'').trim();
+    if(code.indexOf('LUMI1:')!==0)return false;
+    const json=decodeURIComponent(escape(atob(code.slice(6))));
+    const d=parseSave(json);
+    if(!d)return false;
+    applyLoaded(d); saveGame(); return true;
+  }catch(e){return false;}
+}
+function openTransfer(){
+  const code=exportCode()||'(오류)';
+  let html='<div class="small" style="text-align:center;margin-bottom:8px">다른 기기에서 이어 하려면, 이 <b>진행 코드</b>를 복사해 두었다가<br>새 기기의 "코드 붙여넣기"에 넣으세요.</div>';
+  html+='<div class="small" style="margin:4px">📤 내 진행 코드</div>';
+  html+='<textarea id="txcode" readonly style="width:100%;height:96px;border-radius:12px;border:2px solid #efd8e6;padding:8px;font-size:11px;background:#fffdf8;box-sizing:border-box">'+code+'</textarea>';
+  html+='<button class="pillbtn mint" id="txcopy" style="width:100%;margin:6px 0">📋 코드 복사하기</button>';
+  html+='<div class="small" style="margin:10px 4px 4px">📥 코드 붙여넣기 (이 기기에 불러오기)</div>';
+  html+='<textarea id="txin" placeholder="여기에 코드를 붙여넣어요" style="width:100%;height:70px;border-radius:12px;border:2px solid #cfe6d8;padding:8px;font-size:11px;box-sizing:border-box"></textarea>';
+  html+='<button class="pillbtn" id="txload" style="width:100%;margin:6px 0">📥 이 코드로 불러오기</button>';
+  html+='<div class="small" style="text-align:center;color:#c08a8a;margin-top:4px">⚠️ 불러오면 이 기기의 현재 진행은 덮어써져요</div>';
+  openModal('🔄 다른 기기로 이어하기',html);
+  const cp=$('txcopy');
+  if(cp)cp.addEventListener('pointerdown',()=>{
+    const ta=$('txcode'); ta.select();
+    let ok=false;
+    try{ok=document.execCommand('copy');}catch(e){}
+    if(navigator.clipboard){navigator.clipboard.writeText(ta.value).then(()=>{},()=>{});ok=true;}
+    sYes(); toast(ok?'📋 복사됐어요! 새 기기에 붙여넣으세요':'길게 눌러 복사해 주세요');
+  });
+  const ld=$('txload');
+  if(ld)ld.addEventListener('pointerdown',()=>{
+    const v=$('txin').value;
+    if(!v||!v.trim()){toast('붙여넣은 코드가 없어요');sNo();return;}
+    if(importCode(v)){confetti(30);sLevel();closeModal();toast('✅ 불러오기 성공! 이어서 즐겨요');updateHUD();}
+    else{toast('❌ 코드가 올바르지 않아요');sNo();}
+  });
 }
 function parseSave(txt){
   try{const d=JSON.parse(txt); if(d&&d.v===1)return d;}catch(e){}
@@ -1190,6 +1430,11 @@ function applyLoaded(d){
   if(!Array.isArray(S.owned.wings))S.owned.wings=(S.owned.wings===true?['butterfly']:[]);
   if(S.outfit.wings===true)S.outfit.wings='butterfly';
   if(S.outfit.wings&&!WINGS[S.outfit.wings])S.outfit.wings=false;
+  if(S.outfit.wand===undefined)S.outfit.wand=false;
+  if(S.outfit.gloves===undefined)S.outfit.gloves=false;
+  if(!Array.isArray(S.owned.wands))S.owned.wands=[];
+  if(!Array.isArray(S.owned.gloves))S.owned.gloves=[];
+  if(!S.legendClaim)S.legendClaim={};
   S.buff=null; if(!S.cookdex)S.cookdex={};
   if(!S.room)S.room={}; if(!S.roomOwned)S.roomOwned=['bed','rug'];
   if(!S.roomWall)S.roomWall={}; if(!S.roomDeco)S.roomDeco={wall:'pink',floor:'wood'};
@@ -1220,6 +1465,10 @@ function applyLoaded(d){
   if(!S.ownedWalls)S.ownedWalls=['pink']; if(!S.ownedFloors)S.ownedFloors=['wood'];
   if(!S.stamps)S.stamps={};
   if(typeof S.raceQ!=='number')S.raceQ=0;
+  if(!S.legendex)S.legendex={}; if(!S.legendClaim)S.legendClaim={};
+  if(!S.achv)S.achv={}; if(!Array.isArray(S.titles))S.titles=[]; if(S.title===undefined)S.title=null;
+  if(S.attStreak===undefined)S.attStreak=0; ensureDaily();
+  if(S.sex!=='boy'&&S.sex!=='girl')S.sex='girl';
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
     const nt=NATIONS.find(x=>x.id===S.portAt);
@@ -1284,6 +1533,11 @@ function tileType(px,py){
   const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
   if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H)return 1;
   return tiles[ty][tx];
+}
+function isWater(px,py){ // 지도 안의 실제 바다 타일만 true (경계 밖은 물이 아님)
+  const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+  if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H)return false;
+  return tiles[ty][tx]===1;
 }
 function blocked(px,py){
   if(world==='in')return blockedIn(px,py);
@@ -1395,9 +1649,9 @@ function findNearest(){
     const d=Math.hypot(player.x-(p.tx*TILE+24),player.y-(p.ty*TILE+24));
     if(d<56)consider(d+8,{type:'plot',i});
   });
-  if(!best){ // 물 근처면 낚시
+  if(!best){ // 진짜 물가에서만 낚시 (지도 밖은 물로 치지 않음)
     for(let a=0;a<Math.PI*2;a+=Math.PI/4){
-      if(tileType(player.x+Math.cos(a)*54,player.y+Math.sin(a)*54)===1){consider(999,{type:'fish'});break;}
+      if(isWater(player.x+Math.cos(a)*54,player.y+Math.sin(a)*54)){consider(999,{type:'fish'});break;}
     }
   }
   nearest=best;
@@ -1467,8 +1721,8 @@ function doAction(){
 /* ============ 채집 ============ */
 function pickForage(i){
   const k=FORAGE_DEF[i].k;
-  forageUntil[i]=now()+Math.round(30000*forageCdMul());
-  const fb=petForageBonus()+buffYield(); addInv(k,1+fb); addXp(2); sPick();
+  forageUntil[i]=now()+Math.round(30000*forageCdMul()*seasonForageMul());
+  const fb=petForageBonus()+buffYield(); addInv(k,1+fb); addXp(2); sPick(); dailyProgress('forage5');
   spark(FORAGE_DEF[i].tx*TILE+24,FORAGE_DEF[i].ty*TILE+16);
   const cb=petCoinBonus();
   toast(META[k].i+' '+META[k].n+' +'+(1+fb)+(fb?' 🍀':'')+(cb?'  🪙+'+cb:''));
@@ -1482,15 +1736,15 @@ function usePlot(i){
   else if(p.state==='seed'){
     p.state='grow';p.t0=now();sPick();
     spark(PLOT_DEF[i].tx*TILE+24,PLOT_DEF[i].ty*TILE+10,'💧');
-    toast('💧 물을 줬어요! 쑥쑥 자라라~');
+    toast('💧 물을 줬어요! 쑥쑥 자라라~'); dailyProgress('water3');
   }
   else if(p.state==='grow'){
-    const left=Math.ceil((CROPS[p.crop].time*growMul()-(now()-p.t0))/1000);
+    const left=Math.ceil((CROPS[p.crop].time*growMul()*seasonHarvestMul()-(now()-p.t0))/1000);
     toast('⏳ '+Math.max(left,1)+'초 후에 수확할 수 있어요');
   }
   else if(p.state==='ready'){
     const c=CROPS[p.crop];
-    addInv(p.crop,c.yield+buffYield()); addXp(5); sYes();
+    addInv(p.crop,c.yield+buffYield()); addXp(5); sYes(); dailyProgress('harvest3');
     spark(PLOT_DEF[i].tx*TILE+24,PLOT_DEF[i].ty*TILE+10,c.e);
     const cb=petCoinBonus();
     toast(c.e+' '+c.n+' +'+c.yield+' 수확!'+(cb?'  🪙+'+cb:''));
@@ -1545,7 +1799,7 @@ function openFishing(){
 function startTiming(){
   const rr=FRAR[FISH[fish.fk].rar];
   fish.phase='time'; fish.t0=now(); fish.pos=0.5;
-  fish.zh=Math.min(0.44,rr.zone+petFishBonus()+buffFishBonus()+lvFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
+  fish.zh=Math.min(0.46,rr.zone+petFishBonus()+buffFishBonus()+lvFishBonus()+seasonFishBonus()); fish.zy=rand(0.06,0.90-fish.zh); fish.spd=rr.spd;
   // 전설은 2번 연속 성공해야 잡혀요
   fish.need=FISH[fish.fk].rar>=3?2:1;
   fzone.style.display='block';
@@ -1613,6 +1867,8 @@ function landFish(){
   const k=fish.fk, rr=FRAR[FISH[k].rar];
   addInv(k,1); addXp(4+FISH[k].rar*4);
   const isNew=!S.fishdex[k]; S.fishdex[k]=(S.fishdex[k]||0)+1;
+  if(k.indexOf('L_')===0){if(!S.legendex)S.legendex={};S.legendex[k]=true;}
+  dailyProgress('fish3');
   petXpGain(2+FISH[k].rar);
   fish.phase='done'; fish.miss=false;
   sLevel(); confetti(14+FISH[k].rar*8);
@@ -1782,6 +2038,7 @@ function guideTarget(){
 }
 
 function openRegionNpc(id){
+  countTalk('r_'+id);
   const c=REGIONNPC[id], step=S.starStep||0, my=STAR_ORDER[id], t=STAR_TASK[id];
   if(S.starDone){ dialog(c.e,c.n,['무지개 별이 밤하늘에 반짝여요! ✨','언제든 놀러 와요, {P} 공주님~']); return; }
   if(step < my-1){ dialog(c.e,c.n,['별 조각의 노래가 들리나요…?','먼저 '+STAR_PREV[my]+'을(를) 만나고 오세요!']); return; }
@@ -1832,6 +2089,7 @@ function drawRegionNpcs(){
   }
 }
 function openNpc(id){
+  countTalk(id);
   const n=NPCS[id], q=QUESTS[id], st=qs(id);
   // 사슴 축제 소식 전달 체크
   const deerQ=qs('deer');
@@ -1929,11 +2187,18 @@ function gearCharm(){
   g+=(SHOES[S.outfit.shoes]&&SHOES[S.outfit.shoes].charm)||0;
   g+=buffCharm();
   if(S.outfit.wings&&WINGS[S.outfit.wings])g+=WINGS[S.outfit.wings].charm;
-  if(setOn('starry'))g+=2; return g;
+  if(setOn('starry'))g+=2;
+  if(S.outfit.wand&&WANDS[S.outfit.wand])g+=WANDS[S.outfit.wand].charm;
+  if(S.outfit.gloves&&GLOVES[S.outfit.gloves])g+=GLOVES[S.outfit.gloves].charm;
+  if(legendSetOn())g+=10;
+  return g;
 }
 function openStats(){
-  let html='<div class="card" style="text-align:center"><div style="font-size:15px">👸 '+pname()+' 공주 · Lv.'+S.level+'</div>'
-    +'<div class="small">다음 레벨까지 '+(S.level<LEVEL_XP.length?(LEVEL_XP[S.level]-S.xp)+' XP':'최고 레벨!')+'</div></div>';
+  let html='<div class="card" style="text-align:center"><div style="font-size:15px">'+sexEmoji()+' '+pname()+' '+hon()+' · Lv.'+S.level+'</div>'
+    +'<div class="small">다음 레벨까지 '+(S.level<LEVEL_XP.length?(LEVEL_XP[S.level]-S.xp)+' XP':'최고 레벨!')+'</div>'
+    +'<div class="rowline" style="justify-content:center;gap:6px;margin-top:6px">'
+    +'<button class="pillbtn'+(!isBoy()?' pink':' gray')+'" id="sexG">👸 공주</button>'
+    +'<button class="pillbtn'+(isBoy()?' mint':' gray')+'" id="sexB">🤴 왕자</button></div></div>';
   for(const k in STATN){
     const st=STATN[k]; let v=S.stats[k], extra='';
     if(k==='charm')extra=' <span class="small">(+'+gearCharm()+' 꾸미기)</span>';
@@ -1951,6 +2216,9 @@ function openStats(){
     +'<div class="small" style="text-align:center">👑 명성 '+S.renown+(nxt2?' · 다음 등급까지 '+(nxt2.min-S.renown):' · 최고 등급!')+'</div>'
     +'<div class="small" style="text-align:center">🏰 성안 주민 '+resN+'명'+(nxt2?' · 친구들을 도우면 주민이 늘어나요!':'')+'</div></div>'+html;
   openModal('⭐ 능력치',html);
+  const sg=$('sexG'),sb=$('sexB');
+  if(sg)sg.addEventListener('pointerdown',()=>{S.sex='girl';sPick();updateHUD();saveGame();openStats();});
+  if(sb)sb.addEventListener('pointerdown',()=>{S.sex='boy';sPick();updateHUD();saveGame();openStats();});
   $('musbtn').addEventListener('pointerdown',()=>{setMusic(!musicOn);saveGame();openStats();});
   $('sndbtn').addEventListener('pointerdown',()=>{muted=!muted;S.muted=muted;openStats();});
   $('savebtn2').addEventListener('pointerdown',()=>{saveGame();sYes();toast('💾 저장 완료!');});
@@ -1962,7 +2230,64 @@ function openStats(){
   });
 }
 $('btnStats').addEventListener('pointerdown',()=>{audio();openStats();});
+let achvTab='achv';
+function openCollection(){
+  scanAchv();
+  let html='<div class="tabbtns">'
+    +'<button class="tabb'+(achvTab==='achv'?' on':'')+'" id="atA">🏅 업적</button>'
+    +'<button class="tabb'+(achvTab==='title'?' on':'')+'" id="atT">🎗️ 칭호</button>'
+    +'<button class="tabb'+(achvTab==='dex'?' on':'')+'" id="atD">📚 도감</button></div>';
+  if(achvTab==='achv'){
+    const done=ACHV.filter(a=>S.achv[a.id]).length;
+    html+='<div class="small" style="text-align:center;margin-bottom:6px">달성 '+done+' / '+ACHV.length+'</div>';
+    for(const a of ACHV){
+      const ok=!!S.achv[a.id];
+      html+='<div class="card rowline" style="'+(ok?'':'opacity:.6')+'"><div style="font-size:24px">'+(ok?a.e:'🔒')+'</div>'
+        +'<div class="grow"><div>'+a.n+(ok?' ✅':'')+'</div><div class="small">'+a.d
+        +(a.title?' · 칭호 '+TITLES[a.title].e+TITLES[a.title].n:'')+(a.coins?' · 🪙'+a.coins:'')+'</div></div></div>';
+    }
+  }else if(achvTab==='title'){
+    html+='<div class="small" style="text-align:center;margin-bottom:6px">칭호를 골라 이름 앞에 표시해요</div>';
+    html+='<button class="chip'+(!S.title?' on':'')+'" data-tt="__none">칭호 없음</button>';
+    for(const id in TITLES){
+      const has=S.titles.includes(id), on=S.title===id;
+      html+='<button class="chip'+(on?' on':'')+(has?'':' lock')+'" data-tt="'+id+'">'+TITLES[id].e+' '+TITLES[id].n+(has?'':' 🔒')+'</button>';
+    }
+    html+='<div class="small" style="text-align:center;color:#a98;margin-top:6px">🔒 칭호는 업적으로 얻어요</div>';
+  }else{
+    const rows=[
+      ['🐟 물고기 도감',fishGot(),fishTotal(),'fish'],
+      ['💫 전설 물고기',legendGot(),NATIONS.length,'fish'],
+      ['🐾 동물 도감',petGot(),petTotal(),'pet'],
+      ['🍱 요리 도감',cookGot(),Object.keys(RECIPES).length,'cook'],
+      ['🎖️ 여행 스탬프',Object.keys(S.stamps||{}).length,NATIONS.length,null],
+    ];
+    for(const r of rows){
+      const pct=Math.round(r[1]/r[2]*100);
+      html+='<div class="card"><div class="rowline"><div>'+r[0]+'</div><div class="grow"></div><div class="small">'+r[1]+' / '+r[2]+(r[1]>=r[2]?' 🏆':'')+'</div></div>'
+        +'<div class="statbar"><div class="statfill" style="width:'+pct+'%;background:#e8548e"></div></div>'
+        +(r[3]?'<button class="pillbtn gray" data-dex="'+r[3]+'" style="width:100%;margin-top:4px">자세히 보기</button>':'')+'</div>';
+    }
+  }
+  openModal('🏅 업적·도감',html);
+  const a1=$('atA'),a2=$('atT'),a3=$('atD');
+  if(a1)a1.addEventListener('pointerdown',()=>{achvTab='achv';openCollection();});
+  if(a2)a2.addEventListener('pointerdown',()=>{achvTab='title';openCollection();});
+  if(a3)a3.addEventListener('pointerdown',()=>{achvTab='dex';openCollection();});
+  mbody.querySelectorAll('[data-tt]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const id=b.dataset.tt;
+    if(id==='__none'){S.title=null;sPick();updateHUD();saveGame();openCollection();return;}
+    if(!S.titles.includes(id)){toast('🔒 업적을 달성하면 얻어요');sNo();return;}
+    S.title=id; sPick(); updateHUD(); saveGame(); openCollection();
+  }));
+  mbody.querySelectorAll('[data-dex]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const d=b.dataset.dex;
+    if(d==='fish')openFishDex(); else if(d==='pet')openPets(); else if(d==='cook'){cookTab='dex';openCookpot();}
+  }));
+}
+$('btnAchv').addEventListener('pointerdown',()=>{audio();openCollection();});
 $('btnSave').addEventListener('pointerdown',()=>{audio();saveGame();sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');});
+$('btnSync').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;openTransfer();});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
 $('btnRoom').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;warp(enterRoom);});
 $('fdexbtn').addEventListener('pointerdown',()=>{audio();openFishDex();});
@@ -2012,19 +2337,64 @@ function openQuests(){
       +(prog?'<div class="small" style="color:#e86f9e">'+prog+'</div>':'')
       +'</div><div style="text-align:right"><div style="font-size:12px;color:'+cc+';white-space:nowrap">'+chip+'</div>'+pin+'</div></div></div>';
   }
+  ensureDaily();
+  // 출석
+  const attN=Math.min((S.attStreak||1),7), att=ATT_REWARD[attN-1];
+  let dh='<div class="card" style="background:#eef7ff"><div style="text-align:center;font-size:14px">📅 <b>출석 '+attN+'일째</b> (연속)</div>'
+    +'<div class="rowline" style="justify-content:center;gap:3px;margin:4px 0">';
+  for(let i=0;i<7;i++){dh+='<div style="width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;background:'+((i<attN&&!(i===attN-1&&!S.attToday))?'#ffd870':'#e8e0ea')+'">'+(i===6?'🎁':'🪙')+'</div>';}
+  dh+='</div>';
+  if(!S.attToday)dh+='<button class="pillbtn mint" id="attclaim" style="width:100%">🎁 오늘 출석 보상 받기 (🪙'+att.coins+(att.item?' + '+META[att.item[0]].i:'')+')</button>';
+  else dh+='<div class="small" style="text-align:center;color:#59c97b">✅ 오늘 출석 보상을 받았어요! 내일 또 와요</div>';
+  dh+='</div>';
+  // 일일 퀘스트
+  dh+='<div class="small" style="margin:8px 4px 4px">📋 오늘의 일일 퀘스트</div>';
+  for(const t of S.daily.tasks){
+    const d=DAILY_POOL.find(x=>x.id===t.id), done=t.prog>=d.goal, claimed=S.daily.claimed[t.id];
+    dh+='<div class="card rowline"><div style="font-size:22px">'+d.e+'</div>'
+      +'<div class="grow"><div>'+d.n+'</div>'
+      +'<div class="statbar"><div class="statfill" style="width:'+Math.round(t.prog/d.goal*100)+'%;background:'+(done?'#7ed6a5':'#ffb14e')+'"></div></div>'
+      +'<div class="small">'+Math.min(t.prog,d.goal)+' / '+d.goal+'</div></div>'
+      +(claimed?'<span class="small" style="color:#59c97b;padding:0 6px">✅</span>':(done?'<button class="pillbtn mint" data-dq="'+t.id+'">받기</button>':'<span class="small" style="color:#c3b3bd;padding:0 6px">🪙'+d.reward.coins+'</span>'))+'</div>';
+  }
+  dh+='<div class="small" style="margin:10px 4px 4px">🙏 친구들의 부탁</div>';
   html='<div class="card small" style="text-align:center">📍 진행 중인 부탁을 탭하면<br>화살표와 지도가 길을 알려줘요!</div>'+html;
+  html=dh+html;
   if(S.repeats>0)html+='<div class="card small" style="text-align:center">💞 추가로 도와준 횟수: '+S.repeats+'번</div>';
   openModal('📜 부탁 목록',html);
   mbody.querySelectorAll('.qcard').forEach(c=>c.addEventListener('pointerdown',()=>{
     const id=c.dataset.qid; if(qs(id).s!=='active')return;
     S.track=(S.track===id?null:id); sTap(); saveGame(); openQuests();
   }));
+  const ac=$('attclaim');
+  if(ac)ac.addEventListener('pointerdown',()=>{
+    if(S.attToday)return; S.attToday=true;
+    const r=ATT_REWARD[Math.min((S.attStreak||1),7)-1];
+    S.coins+=r.coins; if(r.item)addInv(r.item[0],r.item[1]||1);
+    sLevel();confetti(30);
+    banner('📅 출석 완료!','🪙+'+r.coins+(r.item?' · '+META[r.item[0]].i+' '+META[r.item[0]].n:''));
+    updateHUD();saveGame();openQuests();
+  });
+  mbody.querySelectorAll('[data-dq]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const id=b.dataset.dq, t=S.daily.tasks.find(x=>x.id===id), d=DAILY_POOL.find(x=>x.id===id);
+    if(!t||t.prog<d.goal||S.daily.claimed[id])return;
+    S.daily.claimed[id]=true;
+    S.coins+=d.reward.coins; addXp(d.reward.xp||0); addRenown(3);
+    sYes();confetti(18);toast('🎁 일일 보상! 🪙+'+d.reward.coins);
+    // 3개 모두 완료 보너스
+    if(S.daily.tasks.every(x=>S.daily.claimed[x.id])&&!S.daily.bonus){
+      S.daily.bonus=true; S.coins+=50; addRenown(5); confetti(40);
+      banner('📅 일일 퀘스트 올클리어!','보너스 🪙+50 · 명성+5');
+    }
+    updateHUD();saveGame();openQuests();
+  }));
 }
 $('btnQuest').addEventListener('pointerdown',()=>{audio();openQuests();});
 
 /* ============ 옷장 ============ */
-function chipRow(kind,defs,ownedArr,cur){
+function chipRow(kind,defs,ownedArr,cur,canNone){
   let html='';
+  if(canNone)html+='<button class="chip'+(!cur?' on':'')+'" data-kind="'+kind+'" data-k="__none">없음</button>';
   for(const k in defs){
     const d=defs[k], has=ownedArr.includes(k), on=cur===k;
     const charmTag=d.charm?' <span class="small">💖+'+d.charm+'</span>':'';
@@ -2038,6 +2408,8 @@ function setOutfit(kind,k){
   if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
   else if(kind==='hairstyle')S.outfit.hairstyle=k; else if(kind==='acc')S.outfit.acc=k;
   else if(kind==='shoes')S.outfit.shoes=k;
+  else if(kind==='wand')S.outfit.wand=k;
+  else if(kind==='gloves')S.outfit.gloves=k;
 }
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
@@ -2046,6 +2418,8 @@ function openCloset(){
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
   html+='<div class="small" style="margin:8px 4px 4px">👠 구두</div>'+chipRow('shoes',SHOES,S.owned.shoes,S.outfit.shoes);
+  if(S.owned.wands.length)html+='<div class="small" style="margin:8px 4px 4px">🪄 요술봉</div>'+chipRow('wand',WANDS,S.owned.wands,S.outfit.wand,true);
+  if(S.owned.gloves.length)html+='<div class="small" style="margin:8px 4px 4px">🧤 장갑</div>'+chipRow('gloves',GLOVES,S.owned.gloves,S.outfit.gloves,true);
   html+='<div class="small" style="margin:8px 4px 4px">✨ 장식</div>'+chipRow('acc',ACCS,S.owned.accs,S.outfit.acc);
   html+='<div class="small" style="margin:8px 4px 4px">🦋 날개</div><div style="margin-bottom:4px">';
   html+='<button class="chip'+(!S.outfit.wings?' on':'')+'" data-kind="wings" data-k="none">없음</button>';
@@ -2059,8 +2433,8 @@ function openCloset(){
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   openModal('👗 옷장',html);
   drawCloset();
-  const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes};
-  const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES};
+  const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes,wand:S.owned.wands,gloves:S.owned.gloves};
+  const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wand:WANDS,gloves:GLOVES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('pointerdown',()=>{
     const kind=b.dataset.kind,k=b.dataset.k;
     if(kind==='wings'){
@@ -2077,6 +2451,7 @@ function openCloset(){
       }
       S.outfit.wings=k; sPick(); updateHUD(); openCloset(); return;
     }
+    if(k==='__none'){setOutfit(kind,false);sPick();openCloset();return;}
     const owned=OWNED[kind], d=DEFS[kind][k];
     if(!owned.includes(k)){
       if(d.buy){
@@ -2181,7 +2556,7 @@ function openCookpot(){
   mbody.querySelectorAll('[data-cook]').forEach(b=>b.addEventListener('pointerdown',()=>{
     const k=b.dataset.cook, r=RECIPES[k];
     if(!needMet(r.need)){toast('🥕 재료가 부족해요!');sNo();return;}
-    consumeNeed(r.need); addInv(k,1);
+    consumeNeed(r.need); addInv(k,1); dailyProgress('cook2');
     const isNew=!S.cookdex[k]; S.cookdex[k]=(S.cookdex[k]||0)+1;
     sYes();confetti(12);spark(player.x,player.y-30,META[k].i);
     toast(META[k].i+' '+META[k].n+' 완성!'+(isNew?' ✨새 레시피!':''));petXpGain(2);updateHUD();saveGame();openCookpot();
@@ -2535,8 +2910,11 @@ function spark(wx,wy,em){
 
 /* ============ HUD ============ */
 function updateHUD(){
-  $('hname').textContent=pname();
+  const tt=titleStr();
+  $('hname').textContent=(tt?tt+' ':'')+pname();
+  $('hhon').textContent=hon();
   $('hlvl').textContent=S.level;$('hcoin').textContent=S.coins;
+  scanAchv();
   const lo=LEVEL_XP[S.level-1],hi=LEVEL_XP[S.level]||LEVEL_XP[S.level-1]+1;
   $('xpbar').style.width=clamp((S.xp-lo)/(hi-lo)*100,0,100)+'%';
 }
@@ -2871,7 +3249,7 @@ function drawPlots(){
       ctx.font='14px serif';
       ctx.globalAlpha=0.6+Math.sin(T*4)*0.4;ctx.fillText('💧',cxp+14,y+6);ctx.globalAlpha=1;
     }else if(p.state==='grow'){
-      const pr=clamp((now()-p.t0)/(CROPS[p.crop].time*growMul()),0,1);
+      const pr=clamp((now()-p.t0)/(CROPS[p.crop].time*growMul()*seasonHarvestMul()),0,1);
       if(pr>=1){p.state='ready';}
       ctx.font=(14+pr*12)+'px serif';ctx.fillText(pr<0.5?'🌱':'🌿',cxp,cyp);
     }else if(p.state==='ready'){
@@ -2925,6 +3303,8 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   const sw=moving?Math.sin(walkT*11):0; // 걸음 위상
   const hairC=HAIRS[o.hair].c;
   const skin='#ffdfc9';
+  const boy=isBoy();
+  const pantsC='#5b6b8c';
   let dressC=DRESSES[o.dress].c;
   if(o.dress==='rainbow'){
     const gr=g.createLinearGradient(0,-58,0,-8);
@@ -2962,8 +3342,8 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
       g.fillText('✦',-16,-52);g.fillText('✦',16,-44);g.globalAlpha=1;
     }
   }
-  // 뒷머리 (헤어스타일별)
-  const hs=o.hairstyle||'long';
+  // 뒷머리 (헤어스타일별) — 왕자는 짧은 머리
+  const hs=boy?'__short':(o.hairstyle||'long');
   g.fillStyle=hairC;
   g.beginPath();g.ellipse(0,-67,10.2,9.6,0,0,7);g.fill();
   if(hs==='long'){
@@ -3010,19 +3390,36 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle=(SHOES[o.shoes]||SHOES.pink).c;
   g.beginPath();g.ellipse(-3.6-lsw,-0.9-Math.max(0,sw)*1.6,3.2,2,0,0,7);g.fill();
   g.beginPath();g.ellipse(3.6+lsw,-0.9-Math.max(0,-sw)*1.6,3.2,2,0,0,7);g.fill();
-  // 치마 (허리 -38 → 밑단, 걸을 때 살랑)
-  g.save();g.translate(0,-38);g.rotate(sw*0.05);
-  g.fillStyle=dressC;
-  g.beginPath();g.moveTo(-4.6,0);
-  g.bezierCurveTo(-9,10,-14.5,20,-15.5,27.5);
-  g.quadraticCurveTo(-8,30.5,0,30.5);
-  g.quadraticCurveTo(8,30.5,15.5,27.5);
-  g.bezierCurveTo(14.5,20,9,10,4.6,0);
-  g.closePath();g.fill();
-  g.fillStyle='rgba(255,255,255,.92)';
-  for(const bx of [-11.6,-5.8,0,5.8,11.6]){g.beginPath();g.arc(bx,28.7,3.1,Math.PI,0,true);g.fill();}
-  if(o.dress==='rainbow'){g.font='7px serif';g.textAlign='center';g.fillText('⭐',0,17);}
-  g.restore();
+  if(boy){ // 바지
+    g.strokeStyle=pantsC;g.lineCap='round';g.lineWidth=4.4;
+    g.beginPath();g.moveTo(-3.6,-16);g.lineTo(-3.6-lsw,-2.6-Math.max(0,sw)*1.6);g.stroke();
+    g.beginPath();g.moveTo(3.6,-16);g.lineTo(3.6+lsw,-2.6-Math.max(0,-sw)*1.6);g.stroke();
+  }
+  // 치마 / 튜닉 (허리 -38 → 밑단, 걸을 때 살랑)
+  if(!boy){ // 공주 치마
+    g.save();g.translate(0,-38);g.rotate(sw*0.05);
+    g.fillStyle=dressC;
+    g.beginPath();g.moveTo(-4.6,0);
+    g.bezierCurveTo(-9,10,-14.5,20,-15.5,27.5);
+    g.quadraticCurveTo(-8,30.5,0,30.5);
+    g.quadraticCurveTo(8,30.5,15.5,27.5);
+    g.bezierCurveTo(14.5,20,9,10,4.6,0);
+    g.closePath();g.fill();
+    g.fillStyle='rgba(255,255,255,.92)';
+    for(const bx of [-11.6,-5.8,0,5.8,11.6]){g.beginPath();g.arc(bx,28.7,3.1,Math.PI,0,true);g.fill();}
+    if(o.dress==='rainbow'){g.font='7px serif';g.textAlign='center';g.fillText('⭐',0,17);}
+    g.restore();
+  }else{ // 왕자 튜닉 + 벨트
+    g.save();g.translate(0,-38);g.rotate(sw*0.04);
+    g.fillStyle=dressC;
+    g.beginPath();g.moveTo(-6.5,0);
+    g.lineTo(-9,15);g.quadraticCurveTo(-4.5,18,0,18);g.quadraticCurveTo(4.5,18,9,15);
+    g.lineTo(6.5,0);g.closePath();g.fill();
+    if(o.dress==='rainbow'){g.font='7px serif';g.textAlign='center';g.fillText('⭐',0,9);}
+    g.fillStyle='#7a5a3a';g.fillRect(-7,0.4,14,3);
+    g.fillStyle='#e8c14e';g.fillRect(-1.7,0.4,3.4,3);
+    g.restore();
+  }
   // 몸통(보디스): 어깨 -56 ~ 허리 -38
   g.fillStyle=dressC;
   g.beginPath();
@@ -3036,9 +3433,11 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle='rgba(255,255,255,.6)';g.fillRect(-5,-40.6,10,2.6);
   g.fillStyle='rgba(255,255,255,.85)';
   g.beginPath();g.arc(0,-55.4,3.5,0,Math.PI);g.fill();
-  g.fillStyle=dressC;
-  g.beginPath();g.arc(-8.8,-52.8,3.4,0,7);g.fill();
-  g.beginPath();g.arc(8.8,-52.8,3.4,0,7);g.fill();
+  if(!boy){ // 퍼프 소매
+    g.fillStyle=dressC;
+    g.beginPath();g.arc(-8.8,-52.8,3.4,0,7);g.fill();
+    g.beginPath();g.arc(8.8,-52.8,3.4,0,7);g.fill();
+  }
   // 팔 (걸을 때 앞뒤 스윙)
   const asw=sw*3.2;
   g.strokeStyle=skin;g.lineWidth=3;g.lineCap='round';
@@ -3047,16 +3446,43 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle=skin;
   g.beginPath();g.arc(-10.3+asw*0.5,-36.3,2,0,7);g.fill();
   g.beginPath();g.arc(10.3-asw*0.5,-36.3,2,0,7);g.fill();
+  // 장갑
+  if(o.gloves&&GLOVES[o.gloves]){
+    g.fillStyle=GLOVES[o.gloves].c;
+    g.beginPath();g.arc(-10.3+asw*0.5,-36.3,2.7,0,7);g.fill();
+    g.beginPath();g.arc(10.3-asw*0.5,-36.3,2.7,0,7);g.fill();
+  }
+  // 요술봉 (오른손)
+  if(o.wand&&WANDS[o.wand]){
+    const wd2=WANDS[o.wand], hx=10.3-asw*0.5, hy=-36.3;
+    g.strokeStyle=wd2.stick||'#e8c86a';g.lineWidth=1.8;g.lineCap='round';
+    g.beginPath();g.moveTo(hx,hy);g.lineTo(hx+7,hy-14);g.stroke();
+    g.font='11px serif';g.textAlign='center';g.fillText(wd2.e||'⭐',hx+8,hy-15);
+    if(wd2.spark&&Math.sin(T*5)>0.1){g.globalAlpha=.8;g.font='7px serif';g.fillText('✦',hx+3,hy-9);g.globalAlpha=1;}
+  }
+  // 전설 드레스 반짝임
+  if(DRESSES[o.dress]&&DRESSES[o.dress].shimmer&&Math.sin(T*3)>0){
+    g.globalAlpha=.7;g.font='7px serif';g.textAlign='center';g.fillText('✧',-5,-30);g.fillText('✧',6,-22);g.globalAlpha=1;
+  }
   // 목
   g.fillStyle=skin;g.fillRect(-1.8,-62,3.6,6.5);
   // 얼굴
   g.fillStyle=skin;g.beginPath();g.arc(0,-70,8.6,0,7);g.fill();
   // 앞머리
   g.fillStyle=hairC;
-  g.beginPath();g.arc(0,-71,9.2,Math.PI*1.02,Math.PI*1.98);g.fill();
-  g.beginPath();g.arc(-4.6,-76.6,4,0,7);g.fill();
-  g.beginPath();g.arc(0.5,-77.7,4.2,0,7);g.fill();
-  g.beginPath();g.arc(5,-76.4,3.7,0,7);g.fill();
+  if(boy){
+    g.beginPath();g.arc(0,-71,9.2,Math.PI*1.02,Math.PI*1.98);g.fill();
+    // 옆으로 넘긴 짧은 앞머리
+    g.beginPath();g.moveTo(-8.6,-72);g.quadraticCurveTo(-2,-80,7,-74.5);
+    g.quadraticCurveTo(2,-77,-3,-75.5);g.quadraticCurveTo(-7,-74.5,-8.6,-72);g.closePath();g.fill();
+    g.beginPath();g.ellipse(-8.6,-68,2,3.4,0.2,0,7);g.fill(); // 구레나룻
+    g.beginPath();g.ellipse(8.6,-68,2,3.4,-0.2,0,7);g.fill();
+  }else{
+    g.beginPath();g.arc(0,-71,9.2,Math.PI*1.02,Math.PI*1.98);g.fill();
+    g.beginPath();g.arc(-4.6,-76.6,4,0,7);g.fill();
+    g.beginPath();g.arc(0.5,-77.7,4.2,0,7);g.fill();
+    g.beginPath();g.arc(5,-76.4,3.7,0,7);g.fill();
+  }
   // 눈 + 속눈썹
   g.fillStyle='#5b4636';
   g.beginPath();g.ellipse(-3.4,-69.6,1.4,1.9,0,0,7);g.fill();
@@ -3104,7 +3530,8 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   }else if(acc==='flower'){
     g.font='9px serif';g.textAlign='center';g.fillText('🌸',7,-74);
   }else if(ACCS[acc]&&ACCS[acc].emoji){
-    g.font='12px serif';g.textAlign='center';g.fillText(ACCS[acc].emoji,6.5,-75);
+    if(ACCS[acc].hat){g.font='15px serif';g.textAlign='center';g.fillText(ACCS[acc].emoji,0,-77);}
+    else{g.font='12px serif';g.textAlign='center';g.fillText(ACCS[acc].emoji,6.5,-75);}
   }
   g.restore();
 }
@@ -3185,7 +3612,7 @@ const HGIFT={
 };
 function addRenown(np){
   const before=curRank();
-  np=Math.round(np*petRenownMul()*buffRenownMul());
+  np=Math.round(np*petRenownMul()*buffRenownMul()*medalRenownMul());
   S.renown+=np; toast('👑 왕국 명성 +'+np);
   const after=curRank();
   if(after>before){
@@ -3255,7 +3682,7 @@ function openHuman(id){
         addRenown(8);
         toast('💗 '+h.n+'와 더 친해졌어요! ('+hearts+'/5)');
         const g=HGIFT[id]&&HGIFT[id][hearts];
-        if(g){applyReward(g);banner('💝 '+h.n+'의 우정 선물!','정말 고마워요, {P} 공주님'.replace('{P}',pname()));confetti(22);}
+        if(g){applyReward(g);banner('💝 '+h.n+'의 우정 선물!','정말 고마워요, '+pname()+' '+hon()+'님');confetti(22);}
         newHReq(id); saveGame();
       }},
       {label:'아직이에요',fn:()=>{}}]);
@@ -3412,7 +3839,7 @@ function catchPet(){
   const idx=wilds.indexOf(cap.wp); if(idx>=0)wilds.splice(idx,1);
   endCapture();
   S.pets.push({sp,lv:1,xp:0});
-  S.dex[sp]=true;
+  S.dex[sp]=true; dailyProgress('pet2');
   if(S.activePet==null)S.activePet=S.pets.length-1;
   sLevel();confetti(30);
   banner('🎉 '+spec.n+' 와(과) 친구가 됐어요!','등급: '+rr.n);
@@ -3916,13 +4343,54 @@ function openPortLocal(){
     const done=cnt>=total&&!S.owned.accs.includes('medal');
     dialog('🧒','항구 친구',['어서 와요, {P} 공주님! '+nt.n+'에 온 걸 환영해요!','기념으로 여행 스탬프를 찍어 드릴게요! '+nt.e,'📖 여행 스탬프: '+cnt+' / '+total],
       [{label:'고마워요! ✨',fn:()=>{
-        if(done){grantItem('acc_medal');confetti(40);sLevel();
-          banner('🎖️ 일곱 왕국 스탬프 완성!','여행자 훈장을 얻었어요!');}
+        if(done){grantItem('acc_medal');confetti(50);sLevel();
+          banner('🎖️ 일곱 왕국 스탬프 완성!','여행자 훈장! 💖+9 · 명성+25% · 항구 판매가+15%');}
         saveGame();}}]);
     return;
   }
-  const cnt=Object.keys(S.stamps).length;
-  dialog('🧒','항구 친구',[LOCALTIPS[Math.floor(Math.random()*LOCALTIPS.length)],'📖 여행 스탬프: '+cnt+' / '+total]);
+  openPortLegend();
+}
+const LEGEND_MILE=[
+  {need:3, kind:'wand',   k:'legend', slot:'wands',  n:'전설의 요술봉', e:'🪄'},
+  {need:4, kind:'gloves', k:'legend', slot:'gloves', n:'전설의 장갑',   e:'🧤'},
+  {need:5, kind:'acc',    k:'legendcrown', slot:'accs', n:'전설의 왕관', e:'👑'},
+  {need:6, kind:'shoes',  k:'legend', slot:'shoes',  n:'전설의 구두',   e:'👠'},
+  {need:7, kind:'dress',  k:'legend', slot:'dresses',n:'전설의 드레스', e:'👗'},
+];
+function legendCount(){ if(!S.legendex)return 0; return Object.keys(NATION_LEGEND).filter(id=>S.legendex[NATION_LEGEND[id]]).length; }
+function openPortLegend(){
+  const total=NATIONS.length, sc=Object.keys(S.stamps).length, lc=legendCount();
+  let html='<div class="card" style="background:#fff8e0"><div>🗺️ <b>전설 유물 수집</b></div>'
+    +'<div class="small">각 왕국 항구에서만 낚이는 <b>전설의 물고기</b>를 낚으면(아주 가끔 나타나요!) 유물을 받을 수 있어요.</div>'
+    +'<div style="margin-top:4px"><b>💫 전설의 물고기 '+lc+' / '+total+'</b></div></div>';
+  // 낚은 전설어 목록
+  html+='<div style="margin:6px 0">';
+  for(const id in NATION_LEGEND){const fk=NATION_LEGEND[id], got=S.legendex&&S.legendex[fk], nt2=NATIONS.find(x=>x.id===id);
+    html+='<span class="chip" style="'+(got?'':'opacity:.4')+'">'+(got?META[fk].i:'❔')+' '+nt2.e+'</span>';}
+  html+='</div>';
+  // 마일스톤
+  html+='<div class="small" style="margin:6px 4px 4px">🏆 유물 보상</div>';
+  for(const m of LEGEND_MILE){
+    const claimed=S.legendClaim&&S.legendClaim[m.k];
+    const can=lc>=m.need&&!claimed;
+    html+='<div class="card rowline"><div style="font-size:24px">'+m.e+'</div>'
+      +'<div class="grow"><div>'+m.n+' <span class="small">💖 강력</span></div>'
+      +'<div class="small" style="color:'+(claimed?'#59c97b':can?'#c98a2a':'#b3a3ad')+'">'+(claimed?'✅ 받았어요':'전설 물고기 '+m.need+'종 필요')+'</div></div>'
+      +(can?'<button class="pillbtn mint" data-lm="'+m.k+'">받기 🎁</button>':(claimed?'<span class="small" style="color:#59c97b;padding:0 8px">완료</span>':'<span class="small" style="color:#c3b3bd;padding:0 8px">🔒</span>'))+'</div>';
+  }
+  if(lc>=total)html+='<div class="small" style="text-align:center;color:#c98a2a;margin-top:4px">👑 전설 세트를 모두 착용하면 코인 +20% 보너스!</div>';
+  html+='<div class="small" style="text-align:center;margin-top:6px">📖 여행 스탬프: '+sc+' / '+total+'</div>';
+  openModal('🧒 항구 친구',html);
+  mbody.querySelectorAll('[data-lm]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    const key=b.dataset.lm, m=LEGEND_MILE.find(x=>x.k===key);
+    if(!m||legendCount()<m.need||(S.legendClaim&&S.legendClaim[m.k]))return;
+    if(!S.legendClaim)S.legendClaim={};
+    S.legendClaim[m.k]=true;
+    if(!S.owned[m.slot].includes(m.k))S.owned[m.slot].push(m.k);
+    addRenown(20); sLevel(); confetti(45);
+    banner(m.e+' '+m.n+' 획득!','옷장에서 착용해 보세요!');
+    applyReward({coins:100,xp:60}); saveGame(); openPortLegend();
+  }));
 }
 /* ============ 반짝 광산 (드워프 종족) ============ */
 function enterMine(){
@@ -3946,7 +4414,10 @@ function mineHit(i){
   mineUntil[i]=now()+40000; mineHp[i]=3;
   const r=Math.random(); let k;
   if(r<0.52)k='stoneOre'; else if(r<0.82)k='ironOre'; else if(r<0.97)k='crystalOre'; else k='gem';
-  addInv(k,1); addXp(3); petXpGain(2); sYes(); confetti(8);
+  const oreBonus=(seasonMineBonus()&&Math.random()<0.3)?1:0;
+  addInv(k,1+oreBonus); addXp(3); petXpGain(2); sYes(); confetti(8);
+  if(k==='gem')S.gemEver=true; dailyProgress('ore5');
+  if(oreBonus)toast('❄️ 겨울 보너스! '+META[k].i+' +1');
   toast(META[k].i+' '+META[k].n+' 획득!'+(k==='gem'?' 🎉 귀한 보석!':''));
   saveGame();
 }
@@ -4413,7 +4884,9 @@ function render(){
     ctx.fillText(p.em,p.x-cam.x,p.y-cam.y);
     ctx.globalAlpha=1;
   });
+  drawTimeOverlay();
   drawGuide();
+  drawSeasonBadge();
   drawMini();
 }
 function loop(){
@@ -4436,9 +4909,19 @@ document.addEventListener('touchmove',e=>{if(!(e.target.closest&&e.target.closes
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('pointerdown',()=>{if(bgmWanted&&musicOn){audio();startMusic();}},true);
 
+let pendingSex='girl';
+function updateIntroChar(){
+  const g=$('pickGirl'),b=$('pickBoy'),lab=$('namelabel');
+  if(g)g.classList.toggle('on',pendingSex==='girl');
+  if(b)b.classList.toggle('on',pendingSex==='boy');
+  if(lab)lab.textContent=(pendingSex==='boy'?'왕자님':'공주님');
+}
+$('pickGirl').addEventListener('pointerdown',()=>{pendingSex='girl';sTap();updateIntroChar();});
+$('pickBoy').addEventListener('pointerdown',()=>{pendingSex='boy';sTap();updateIntroChar();});
 (async function init(){
   const saved=await loadGame();
   if(saved)applyLoaded(saved); else S=freshState();
+  pendingSex=(S&&S.sex==='boy')?'boy':'girl'; updateIntroChar();
   updateHUD();
   if(saved){$('startbtn').textContent='이어서 모험하기 ▶';$('newbtn').style.display='block';}
   $('nameinput').value=pname();
@@ -4456,19 +4939,19 @@ function applyName(){
   updateHUD();
 }
 $('startbtn').addEventListener('pointerdown',()=>{
-  audio(); sYes(); applyName();
+  audio(); sYes(); if(S)S.sex=pendingSex; applyName();
   bgmWanted=S&&S.music!==false;
   if(bgmWanted)startMusic();
   $('intro').style.display='none';
   if(S&&!S.tutorial){S.tutorial=true;tutoStep=1;toast('🕹️ 화면 왼쪽을 문질러 움직여요!');}
-  else toast('🌸 다시 온 걸 환영해요, '+pname()+' 공주님!');
+  else toast('🌸 다시 온 걸 환영해요, '+pname()+' '+hon()+'님!');
   saveGame();
 });
 let newArm=false;
 $('newbtn').addEventListener('pointerdown',()=>{
   audio();
   if(!newArm){newArm=true;$('newbtn').textContent='정말요? 이전 기록이 사라져요! 한 번 더 탭';sNo();return;}
-  S=freshState(); forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
+  S=freshState(); S.sex=pendingSex; forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
   updateHUD(); $('intro').style.display='none';
   S.tutorial=true; tutoStep=1;
   toast('🕹️ 화면 왼쪽을 문질러 움직여요!');
