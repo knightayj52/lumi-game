@@ -2960,10 +2960,31 @@ function drawWorld(){
       ctx.fillRect(px,py,TILE,TILE);
       if(hash(tx*5,ty*3)>0.8){ctx.fillStyle='#dcebf6';
         ctx.beginPath();ctx.arc(px+10+hash(tx,ty)*28,py+12+hash(ty,tx)*24,3,0,7);ctx.fill();}
-    }else{
-      ctx.fillStyle='#ecd9a9';ctx.fillRect(px,py,TILE,TILE);
-      ctx.fillStyle='#dfc78e';
-      if((tx+ty)%2===0)ctx.fillRect(px+18,py+18,10,10);
+    }else{ // t===3 길: 둥근 흙길
+      ctx.fillStyle=hash(tx,ty)>0.5?'#ecd9a9':'#e7d29e';
+      ctx.fillRect(px,py,TILE,TILE);
+      const isP=(a,b)=>{const row=tiles[b];return row&&row[a]===3;};
+      const isG=(a,b)=>{const row=tiles[b];return row&&row[a]===0;};
+      // 잔디와 만나는 모서리 둥글리기 (양옆이 모두 길이 아닐 때)
+      ctx.fillStyle=hash(tx+9,ty+9)>0.5?'#9fd48a':'#a8dc93';
+      const R=13;
+      const corner=(cx,cy,a0,cond)=>{if(!cond)return;
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,a0,a0+Math.PI/2);ctx.closePath();ctx.fill();};
+      corner(px,py,0, !isP(tx-1,ty)&&!isP(tx,ty-1)&&(isG(tx-1,ty)||isG(tx,ty-1)));
+      corner(px+TILE,py,Math.PI/2, !isP(tx+1,ty)&&!isP(tx,ty-1)&&(isG(tx+1,ty)||isG(tx,ty-1)));
+      corner(px+TILE,py+TILE,Math.PI, !isP(tx+1,ty)&&!isP(tx,ty+1)&&(isG(tx+1,ty)||isG(tx,ty+1)));
+      corner(px,py+TILE,Math.PI*1.5, !isP(tx-1,ty)&&!isP(tx,ty+1)&&(isG(tx-1,ty)||isG(tx,ty+1)));
+      // 경계 음영 (위: 그늘, 아래: 밝음)
+      if(!isP(tx,ty-1)){ctx.fillStyle='rgba(120,90,50,.12)';ctx.fillRect(px,py,TILE,3);}
+      if(!isP(tx,ty+1)){ctx.fillStyle='rgba(255,255,255,.28)';ctx.fillRect(px,py+TILE-3,TILE,3);}
+      // 자갈
+      if(hash(tx*7,ty*3)>0.5){ctx.fillStyle='#d9c188';
+        ctx.beginPath();ctx.ellipse(px+8+hash(tx,ty*4)*30,py+10+hash(tx*4,ty)*26,3.4,2.4,0.4,0,7);ctx.fill();}
+      if(hash(tx*11,ty*5)>0.72){ctx.fillStyle='#cdb47c';
+        ctx.beginPath();ctx.ellipse(px+12+hash(ty,tx*3)*24,py+26+hash(tx*2,ty*2)*14,2.6,2,-.3,0,7);ctx.fill();}
+      // 가장자리 풀포기
+      if(isG(tx,ty-1)&&hash(tx*13,ty)>0.7){ctx.fillStyle='#8cc47a';
+        ctx.fillRect(px+8+hash(tx,ty*9)*30,py+1,2.5,5);}
     }
   }
   // 모래-바다 경계 거품
@@ -3285,11 +3306,105 @@ function drawForage(){
   });
 }
 
+const NPCLOOK={
+  rabbit:{c:'#f7f0ea',sh:'#e5d8cf',belly:'#ffffff',ear:'long',earIn:'#ffc9d6',tail:'puff',cheek:'#ffb9c8'},
+  squirrel:{c:'#c98d5a',sh:'#ad7344',belly:'#f2dcbd',ear:'round',tail:'curl',cheek:'#e8a97a'},
+  bird:{c:'#7ec3ea',sh:'#5da7d4',belly:'#eaf6ff',ear:'none',beak:true,wing:true,cheek:'#ffc3d0'},
+  cat:{c:'#f5d9a8',sh:'#dfbd85',belly:'#fff5e2',ear:'tri',earIn:'#ffc9d6',tail:'cat',whisker:true,cheek:'#ffb9c8'},
+  fox:{c:'#f0975a',sh:'#d47a3e',belly:'#fff4ea',ear:'tri',earIn:'#c96a35',tail:'fox',cheek:'#ffb094'},
+  bear:{c:'#a9744c',sh:'#8d5d3a',belly:'#d9b88c',ear:'round',big:1.14,cheek:'#d49a70'},
+  deer:{c:'#c9a06a',sh:'#ab8352',belly:'#eddcc0',ear:'side',antler:true,spots:true,big:1.1,cheek:'#e0ab86'},
+};
+function drawAnimal(id,wx,wy,bob){
+  const L=NPCLOOK[id]; if(!L){drawEmoji(NPCS[id].e,wx,wy+bob,34,15);return;}
+  const x=wx-cam.x,y=wy-cam.y;
+  if(x<-60||x>W+60||y<-80||y>H+50)return;
+  const g=ctx, sc=L.big||1;
+  // 그림자
+  g.fillStyle='rgba(0,0,0,.13)';
+  g.beginPath();g.ellipse(x,y+4,15*sc,5,0,0,7);g.fill();
+  g.save();g.translate(x,y+bob);g.scale(sc,sc);
+  // 꼬리 (몸 뒤)
+  if(L.tail==='curl'){g.fillStyle=L.c;
+    g.beginPath();g.moveTo(9,-8);g.bezierCurveTo(22,-10,24,-30,12,-32);
+    g.bezierCurveTo(20,-26,18,-14,8,-13);g.closePath();g.fill();}
+  else if(L.tail==='fox'){g.fillStyle=L.c;
+    g.beginPath();g.ellipse(13,-9,8,4.5,-.5,0,7);g.fill();
+    g.fillStyle='#fff';g.beginPath();g.ellipse(17,-11.5,3.4,2.4,-.5,0,7);g.fill();}
+  else if(L.tail==='cat'){g.strokeStyle=L.c;g.lineWidth=4;g.lineCap='round';
+    g.beginPath();g.moveTo(10,-6);g.quadraticCurveTo(19,-8,18,-18);g.stroke();}
+  else if(L.tail==='puff'){g.fillStyle='#fff';g.beginPath();g.arc(11,-8,4,0,7);g.fill();}
+  // 몸
+  g.fillStyle=L.c;
+  g.beginPath();g.ellipse(0,-8,11,9.5,0,0,7);g.fill();
+  g.fillStyle=L.belly;
+  g.beginPath();g.ellipse(0,-6.5,6.5,6,0,0,7);g.fill();
+  // 발
+  g.fillStyle=L.sh;
+  g.beginPath();g.ellipse(-5,-0.5,3.4,2.2,0,0,7);g.fill();
+  g.beginPath();g.ellipse(5,-0.5,3.4,2.2,0,0,7);g.fill();
+  // 날개 (새)
+  if(L.wing){g.fillStyle=L.sh;
+    g.beginPath();g.ellipse(-9,-9,4.5,7,0.5,0,7);g.fill();
+    g.beginPath();g.ellipse(9,-9,4.5,7,-0.5,0,7);g.fill();}
+  // 머리
+  const hy=-26;
+  // 귀 (머리 뒤)
+  if(L.ear==='long'){g.fillStyle=L.c;
+    for(const sn of [-1,1]){g.beginPath();g.ellipse(sn*6,hy-14,3.6,10,sn*0.15,0,7);g.fill();}
+    g.fillStyle=L.earIn;
+    for(const sn of [-1,1]){g.beginPath();g.ellipse(sn*6,hy-13,1.8,6.5,sn*0.15,0,7);g.fill();}}
+  else if(L.ear==='tri'){g.fillStyle=L.c;
+    for(const sn of [-1,1]){g.beginPath();g.moveTo(sn*4,hy-9);g.lineTo(sn*12,hy-16);g.lineTo(sn*10,hy-4);g.closePath();g.fill();}
+    g.fillStyle=L.earIn;
+    for(const sn of [-1,1]){g.beginPath();g.moveTo(sn*6,hy-9);g.lineTo(sn*10.5,hy-13);g.lineTo(sn*9,hy-6.5);g.closePath();g.fill();}}
+  else if(L.ear==='round'){g.fillStyle=L.c;
+    for(const sn of [-1,1]){g.beginPath();g.arc(sn*8.5,hy-9.5,4.6,0,7);g.fill();}
+    g.fillStyle=L.belly;
+    for(const sn of [-1,1]){g.beginPath();g.arc(sn*8.5,hy-9.5,2.3,0,7);g.fill();}}
+  else if(L.ear==='side'){g.fillStyle=L.c;
+    for(const sn of [-1,1]){g.beginPath();g.ellipse(sn*11,hy-6,5,2.8,sn*0.5,0,7);g.fill();}}
+  // 뿔 (사슴)
+  if(L.antler){g.strokeStyle='#8a6a48';g.lineWidth=2.2;g.lineCap='round';
+    for(const sn of [-1,1]){g.beginPath();g.moveTo(sn*5,hy-10);g.lineTo(sn*8,hy-18);g.moveTo(sn*6.5,hy-14);g.lineTo(sn*11,hy-16);g.stroke();}}
+  // 얼굴
+  g.fillStyle=L.c;
+  g.beginPath();g.arc(0,hy,12,0,7);g.fill();
+  // 주둥이/무늬
+  g.fillStyle=L.belly;
+  g.beginPath();g.ellipse(0,hy+4.5,6,4.5,0,0,7);g.fill();
+  if(L.spots){g.fillStyle='#eddcc0';
+    g.beginPath();g.arc(-7,hy-5,1.5,0,7);g.fill();g.beginPath();g.arc(7,hy-4,1.5,0,7);g.fill();}
+  // 눈
+  g.fillStyle='#4a3f46';
+  g.beginPath();g.arc(-4.5,hy-1,1.7,0,7);g.fill();
+  g.beginPath();g.arc(4.5,hy-1,1.7,0,7);g.fill();
+  g.fillStyle='#fff';
+  g.beginPath();g.arc(-4,hy-1.6,0.6,0,7);g.fill();
+  g.beginPath();g.arc(5,hy-1.6,0.6,0,7);g.fill();
+  // 볼터치
+  g.fillStyle=L.cheek||'#ffb9c8';g.globalAlpha=.7;
+  g.beginPath();g.ellipse(-7.5,hy+2.5,2.4,1.6,0,0,7);g.fill();
+  g.beginPath();g.ellipse(7.5,hy+2.5,2.4,1.6,0,0,7);g.fill();
+  g.globalAlpha=1;
+  // 코·입 / 부리
+  if(L.beak){g.fillStyle='#f2b04a';
+    g.beginPath();g.moveTo(-3,hy+2.5);g.lineTo(3,hy+2.5);g.lineTo(0,hy+6.5);g.closePath();g.fill();}
+  else{g.fillStyle='#c98a94';
+    g.beginPath();g.arc(0,hy+3,1.4,0,7);g.fill();
+    g.strokeStyle='#b58a92';g.lineWidth=1;
+    g.beginPath();g.arc(-1.6,hy+5,1.6,0,Math.PI*0.9);g.stroke();
+    g.beginPath();g.arc(1.6,hy+5,1.6,Math.PI*0.1,Math.PI);g.stroke();}
+  // 수염 (고양이)
+  if(L.whisker){g.strokeStyle='rgba(120,100,90,.6)';g.lineWidth=1;
+    for(const sn of [-1,1]){g.beginPath();g.moveTo(sn*8,hy+3);g.lineTo(sn*14,hy+2);g.moveTo(sn*8,hy+5);g.lineTo(sn*14,hy+6);g.stroke();}}
+  g.restore();
+}
 function drawNpcs(){
   for(const id in NPCS){
     const n=NPCS[id];
     const bob=Math.sin(T*2.4+n.px*0.05)*2.5;
-    drawEmoji(n.e,n.px,n.py+bob,id==='bear'||id==='deer'?40:34,15);
+    drawAnimal(id,n.px,n.py,bob);
     const b=questBubble(id);
     const x=n.px-cam.x,y=n.py-cam.y;
     if(b&&x>-40&&x<W+40){
