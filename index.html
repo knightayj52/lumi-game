@@ -505,6 +505,7 @@ const HAIRS={
   white:{n:'백금 머리',c:'#efeaf2',charm:4,buy:140},
 };
 const HAIRSTYLES={
+  short:{n:'짧은 머리',charm:0,how:'처음부터'},
   long:{n:'긴 생머리',charm:0,how:'처음부터'},
   twin:{n:'트윈테일',charm:2,buy:70},
   wave:{n:'웨이브 머리',charm:2,buy:70},
@@ -1146,7 +1147,7 @@ function freshState(){return{
   stats:{charm:1,wis:1,kind:1,lead:1},
   inv:{carrotSeed:3,strawSeed:1},
   outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false,wand:false,gloves:false},
-  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:[],wands:[],gloves:[]},
+  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['short','long'],accs:['crown'],shoes:['pink'],wings:[],wands:[],gloves:[]},
   q:{}, deerTold:{}, repeats:0,
   plots:PLOT_DEF.map(()=>({state:'empty',crop:null,elapsed:0})),
   forage:FORAGE_DEF.map(()=>0), // 남은 리스폰(ms), 0이면 있음
@@ -1438,6 +1439,7 @@ function applyLoaded(d){
   if(!S.outfit.hairstyle)S.outfit.hairstyle='long';
   if(!S.outfit.shoes)S.outfit.shoes='pink';
   if(!S.owned.hairstyles)S.owned.hairstyles=['long'];
+  if(!S.owned.hairstyles.includes('short'))S.owned.hairstyles.push('short');
   if(!S.owned.shoes)S.owned.shoes=['pink'];
   if(!Array.isArray(S.owned.wings))S.owned.wings=(S.owned.wings===true?['butterfly']:[]);
   if(S.outfit.wings===true)S.outfit.wings='butterfly';
@@ -3630,8 +3632,8 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
       g.fillText('✦',-16,-52);g.fillText('✦',16,-44);g.globalAlpha=1;
     }
   }
-  // 뒷머리 (헤어스타일별) — 왕자는 짧은 머리
-  const hs=boy?'__short':(o.hairstyle||'long');
+  // 성별과 관계없이 옷장에서 선택한 헤어스타일을 그려요.
+  const hs=HAIRSTYLES[o.hairstyle]?o.hairstyle:(boy?'short':'long');
   g.fillStyle=hairC;
   g.beginPath();g.ellipse(0,-67,10.2,9.6,0,0,7);g.fill();
   if(hs==='long'){
@@ -3756,9 +3758,9 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle=skin;g.fillRect(-1.8,-62,3.6,6.5);
   // 얼굴
   g.fillStyle=skin;g.beginPath();g.arc(0,-70,8.6,0,7);g.fill();
-  // 앞머리
+  // 앞머리도 선택한 헤어스타일에 맞춰요.
   g.fillStyle=hairC;
-  if(boy){
+  if(hs==='short'){
     g.beginPath();g.arc(0,-71,9.2,Math.PI*1.02,Math.PI*1.98);g.fill();
     // 옆으로 넘긴 짧은 앞머리
     g.beginPath();g.moveTo(-8.6,-72);g.quadraticCurveTo(-2,-80,7,-74.5);
@@ -5226,7 +5228,12 @@ function applyName(){
   updateHUD();
 }
 $('startbtn').addEventListener('pointerdown',()=>{
-  audio(); sYes(); if(S)S.sex=pendingSex; applyName();
+  audio(); sYes();
+  if(S){
+    S.sex=pendingSex;
+    if(!S.tutorial)S.outfit.hairstyle=isBoy()?'short':'long';
+  }
+  applyName();
   bgmWanted=S&&S.music!==false;
   if(bgmWanted)startMusic();
   $('intro').style.display='none';
@@ -5238,7 +5245,8 @@ let newArm=false;
 $('newbtn').addEventListener('pointerdown',()=>{
   audio();
   if(!newArm){newArm=true;$('newbtn').textContent='정말요? 이전 기록이 사라져요! 한 번 더 탭';sNo();return;}
-  S=freshState(); S.sex=pendingSex; forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
+  S=freshState(); S.sex=pendingSex; S.outfit.hairstyle=isBoy()?'short':'long';
+  forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
   updateHUD(); $('intro').style.display='none';
   S.tutorial=true; tutoStep=1;
   toast('🕹️ 화면 왼쪽을 문질러 움직여요!');
