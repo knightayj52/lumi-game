@@ -1300,7 +1300,7 @@ function rollDaily(){
   for(let i=0;i<3&&pool.length;i++){const j=h%pool.length; h=(h*1103515245+12345)>>>0; idx.push(pool.splice(j,1)[0]);}
   return idx.map(d=>({id:d.id,prog:0}));
 }
-function ensureDaily(){
+function ensureDaily(persist=true){
   if(!S.daily||S.daily.date!==todayStr()){
     S.daily={date:todayStr(), tasks:rollDaily(), claimed:{}};
     // 출석 처리
@@ -1311,7 +1311,7 @@ function ensureDaily(){
       S.attStreak=(last===yStr)?((S.attStreak||0)+1):1;
       S.attLast=td; S.attToday=false;
     }
-    saveGame();
+    if(persist)saveGame();
   }
 }
 function countTalk(id){ if(!S.daily)return; if(!S._talkedToday)S._talkedToday={}; if(S._talkedToday[id])return; S._talkedToday[id]=true; dailyProgress('talk3'); }
@@ -1355,24 +1355,28 @@ function exportCode(){
   }catch(e){return null;}
 }
 function importCode(code){
+  let previous=null;
   try{
-    code=(code||'');
-    // 접두어가 어디에 있든 그 뒤부터 사용
+    if(typeof code!=='string'||code.length>3000000)return false;
     const i=code.indexOf('LUMI1:');
     if(i<0)return false;
-    let b64=code.slice(i+6);
-    // 붙여넣기 중 섞인 공백·줄바꿈 모두 제거
-    b64=b64.replace(/\s+/g,'');
-    // 코드에 쓰이지 않는 문자 제거 (실수로 딸려온 문자 방지)
-    b64=b64.replace(/[^A-Za-z0-9\-_+/=]/g,'');
-    // base64url → base64 복원 + 패딩 보정
+    let b64=code.slice(i+6).replace(/\s+/g,'');
+    if(!/^[A-Za-z0-9_+\/-]+={0,2}$/.test(b64)||b64.replace(/=+$/,'').length%4===1)return false;
     b64=b64.replace(/-/g,'+').replace(/_/g,'/');
     while(b64.length%4)b64+='=';
-    const json=decodeURIComponent(escape(atob(b64)));
-    const d=parseSave(json);
+    const d=parseSave(decodeURIComponent(escape(atob(b64))));
     if(!d)return false;
-    applyLoaded(d); saveGame(); return true;
-  }catch(e){return false;}
+    previous={state:S,forage:forageUntil,world,activeNation,player:{...player},muted,musicOn};
+    applyLoaded(d,false);
+  }catch(e){
+    if(previous){
+      S=previous.state;forageUntil=previous.forage;world=previous.world;
+      activeNation=previous.activeNation;Object.assign(player,previous.player);
+      muted=previous.muted;musicOn=previous.musicOn;
+    }
+    return false;
+  }
+  saveGame(); return true;
 }
 function openTransfer(){
   const code=exportCode()||'(오류)';
@@ -1402,8 +1406,94 @@ function openTransfer(){
   });
 }
 function parseSave(txt){
-  try{const d=JSON.parse(txt); if(d&&d.v===1)return d;}catch(e){}
-  return null;
+  try{
+    if(typeof txt!=='string'||txt.length>2000000)return null;
+    const d=JSON.parse(txt,(key,value)=>{
+      if(['__proto__','prototype','constructor'].includes(key))throw new Error('Invalid key');
+      return value;
+    });
+    const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+    const num=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
+    const integer=x=>num(x)&&Number.isSafeInteger(x);
+    const has=(defs,k)=>typeof k==='string'&&Object.prototype.hasOwnProperty.call(defs,k);
+    const map=(x,check)=>obj(x)&&Object.entries(x).every(([k,v])=>check(v,k));
+    const list=(x,check)=>Array.isArray(x)&&x.every(check);
+    const flag=x=>typeof x==='boolean'||x===0||x===1;
+    const date=x=>typeof x==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(x);
+    if(!obj(d)||d.v!==1)return null;
+    for(const k of ['coins','xp','level','stats','inv','outfit','owned','q','plots','forage']){
+      if(!Object.prototype.hasOwnProperty.call(d,k))return null;
+    }
+    const defaults=freshState();
+    // 이전 버전에 없던 항목은 허용하되, 포함된 항목의 자료형을 확인해요.
+    for(const [k,v] of Object.entries(defaults)){
+      if(!(k in d))continue;
+      if(typeof v==='boolean'&&typeof d[k]!=='boolean')return null;
+      if(typeof v==='number'&&!integer(d[k]))return null;
+      if(typeof v==='string'&&typeof d[k]!=='string')return null;
+      if(Array.isArray(v)&&!Array.isArray(d[k]))return null;
+      if(obj(v)&&!obj(d[k]))return null;
+    }
+    if(d.level<1||d.level>LEVEL_XP.length||d.xp<LEVEL_XP[d.level-1])return null;
+    if(d.level<LEVEL_XP.length&&d.xp>=LEVEL_XP[d.level])return null;
+    if(d.name!==undefined&&d.name.length>6)return null;
+    if(d.sex!==undefined&&!['boy','girl'].includes(d.sex))return null;
+    if(!map(d.stats,(v,k)=>has(STATN,k)&&num(v))||!map(d.inv,(v,k)=>has(META,k)&&integer(v)))return null;
+    const gear={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wings:WINGS,wand:WANDS,gloves:GLOVES};
+    for(const k of ['dress','hair','acc'])if(!has(gear[k],d.outfit[k]))return null;
+    for(const [k,v] of Object.entries(d.outfit)){
+      if(!has(gear,k))return null;
+      if(['wings','wand','gloves'].includes(k)&&(v===false||(k==='wings'&&v===true)))continue;
+      if(!has(gear[k],v))return null;
+    }
+    const owned={dresses:DRESSES,hairs:HAIRS,hairstyles:HAIRSTYLES,accs:ACCS,shoes:SHOES,wings:WINGS,wands:WANDS,gloves:GLOVES};
+    for(const k of ['dresses','hairs','accs'])if(!Array.isArray(d.owned[k]))return null;
+    for(const [k,v] of Object.entries(d.owned)){
+      if(!has(owned,k))return null;
+      if(k==='wings'&&typeof v==='boolean')continue;
+      if(!list(v,id=>has(owned[k],id)))return null;
+    }
+    if(!map(d.q,(v,k)=>has(QUESTS,k)&&obj(v)&&['none','active','done'].includes(v.s)&&(v.rep===undefined||typeof v.rep==='boolean')))return null;
+    if(!list(d.plots,p=>obj(p)&&['empty','seed','grow','ready'].includes(p.state)&&(p.state==='empty'||has(CROPS,p.crop))&&(p.elapsed===undefined||num(p.elapsed))))return null;
+    if(!list(d.forage,num))return null;
+    if(d.pets&&!list(d.pets,p=>obj(p)&&has(PETSPEC,p.sp)&&integer(p.lv)&&p.lv>=1&&p.lv<=10&&integer(p.xp)&&(p.evo===undefined||typeof p.evo==='boolean')))return null;
+    if(d.activePet!=null&&(!integer(d.activePet)||!d.pets||d.activePet>=d.pets.length))return null;
+    if(d.pens!==undefined&&(d.pens<2||d.pens>RANCH_PENS.length))return null;
+    if(d.animals&&!list(d.animals,a=>obj(a)&&has(LIVESTOCK,a.t)&&integer(a.pen)&&a.pen<(d.pens||2)&&integer(a.slot)&&a.slot<2&&typeof a.fed==='boolean'&&typeof a.ready==='boolean'&&(a.elapsed===undefined||num(a.elapsed))))return null;
+    if(d.animals&&new Set(d.animals.map(a=>a.pen+','+a.slot)).size!==d.animals.length)return null;
+    if(d.daily!=null){
+      const day=d.daily,defs=Object.fromEntries(DAILY_POOL.map(t=>[t.id,t]));
+      if(!obj(day)||!date(day.date)||!list(day.tasks,t=>obj(t)&&has(defs,t.id)&&integer(t.prog)&&t.prog<=defs[t.id].goal)||!map(day.claimed,(v,k)=>has(defs,k)&&flag(v)))return null;
+      if(day.tasks.length!==3||new Set(day.tasks.map(t=>t.id)).size!==3)return null;
+      if(day.bonus!==undefined&&typeof day.bonus!=='boolean')return null;
+    }
+    if(d.attLast!=null&&!date(d.attLast))return null;
+    if(d.savedAt!==undefined&&!integer(d.savedAt))return null;
+    if(d.title!=null&&!has(TITLES,d.title))return null;
+    if(d.titles&&!list(d.titles,k=>has(TITLES,k)))return null;
+    if(d.track!=null&&!has(QUESTS,d.track))return null;
+    if(d.portAt!=null&&!NATIONS.some(n=>n.id===d.portAt))return null;
+    if(d.trade&&(!map(d.trade.done,integer)||!Number.isSafeInteger(d.trade.seen)||d.trade.seen< -1))return null;
+    for(const k of ['deerTold','met','queenGift','dex','stamps','legendex','legendClaim','achv','_talkedToday']){
+      if(d[k]!==undefined&&!map(d[k],flag))return null;
+    }
+    if(d.fishdex&&!map(d.fishdex,(v,k)=>has(META,k)&&integer(v)))return null;
+    if(d.cookdex&&!map(d.cookdex,(v,k)=>has(RECIPES,k)&&integer(v)))return null;
+    if(d.friend&&!map(d.friend,(v,k)=>has(HUMANS,k)&&integer(v)&&v<=5))return null;
+    if(d.hreq&&!map(d.hreq,(v,k)=>has(HUMANS,k)&&obj(v)&&typeof v.say==='string'&&map(v.need,(n,id)=>(has(META,id)||id==='fishAny')&&integer(n))))return null;
+    if(d.roomOwned&&!list(d.roomOwned,k=>has(FURN,k)))return null;
+    if(d.roomInv&&!map(d.roomInv,(v,k)=>has(FURN,k)&&integer(v)))return null;
+    const cols=d.roomGridV2?5:7,rows=d.roomGridV2?3:4;
+    if(d.room&&!map(d.room,(v,k)=>{const m=/^(\d+),(\d+)$/.exec(k);return !!m&&+m[1]<cols&&+m[2]<rows&&has(FURN,v)&&!FURN[v].wall;}))return null;
+    if(d.roomWall&&!map(d.roomWall,(v,k)=>/^\d+$/.test(k)&&+k<cols&&has(FURN,v)&&!!FURN[v].wall))return null;
+    if(d.roomDeco&&(!has(WALLS,d.roomDeco.wall)||!has(FLOORS,d.roomDeco.floor)))return null;
+    if(d.ownedWalls&&!list(d.ownedWalls,k=>has(WALLS,k)))return null;
+    if(d.ownedFloors&&!list(d.ownedFloors,k=>has(FLOORS,k)))return null;
+    // 알려진 저장 항목만 넘겨 알 수 없는 값이 게임 상태에 섞이지 않게 해요.
+    const result={};
+    for(const k of [...Object.keys(defaults),'savedAt','_talkedToday'])if(Object.prototype.hasOwnProperty.call(d,k))result[k]=d[k];
+    return result;
+  }catch(e){return null;}
 }
 async function loadGame(){
   if(window.storage){
@@ -1419,7 +1509,7 @@ async function loadGame(){
   return null;
 }
 let forageUntil=FORAGE_DEF.map(()=>0);
-function applyLoaded(d){
+function applyLoaded(d,persist=true){
   S=Object.assign(freshState(),d);
   S.stats=Object.assign({charm:1,wis:1,kind:1,lead:1},d.stats||{});
   S.plots=PLOT_DEF.map((_,i)=>{
@@ -1479,7 +1569,7 @@ function applyLoaded(d){
   if(typeof S.raceQ!=='number')S.raceQ=0;
   if(!S.legendex)S.legendex={}; if(!S.legendClaim)S.legendClaim={};
   if(!S.achv)S.achv={}; if(!Array.isArray(S.titles))S.titles=[]; if(S.title===undefined)S.title=null;
-  if(S.attStreak===undefined)S.attStreak=0; ensureDaily();
+  if(S.attStreak===undefined)S.attStreak=0; ensureDaily(persist);
   if(S.sex!=='boy'&&S.sex!=='girl')S.sex='girl';
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
