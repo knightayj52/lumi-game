@@ -1330,19 +1330,60 @@ function fishCount(){return FISHKEYS.reduce((a,k)=>a+inv(k),0);}
 /* ---- 저장/불러오기 (클로드 저장소 + 브라우저 저장소 겸용) ---- */
 const SAVE_KEY='lumi-kingdom-save';
 let saveTimer=0;
+let lastSaveTimestamp=0;
 function buildSaveJson(){
   const data=JSON.parse(JSON.stringify(S));
+  data.savedAt=Math.max(Date.now(),lastSaveTimestamp+1,Number.isFinite(S.savedAt)?S.savedAt+1:0);
+  lastSaveTimestamp=data.savedAt;
   data.plots=S.plots.map(p=>{const q={state:p.state,crop:p.crop,elapsed:0};if(p.state==='grow')q.elapsed=now()-p.t0;return q;});
   data.forage=FORAGE_DEF.map((f,i)=>{const u=forageUntil[i];return u>now()?Math.ceil(u-now()):0;});
   data.animals=S.animals.map(a=>({t:a.t,pen:a.pen,slot:a.slot,fed:a.fed,ready:a.ready,elapsed:(a.fed&&!a.ready)?now()-a.t0:0}));
   return JSON.stringify(data);
 }
-async function saveGame(){
-  if(!S)return;
-  let json=null;
-  try{ json=buildSaveJson(); }catch(e){return;}
-  if(window.storage){try{await window.storage.set(SAVE_KEY,json);}catch(e){}}
-  try{localStorage.setItem(SAVE_KEY,json);}catch(e){}
+// 브라우저에는 즉시 저장하고, 비동기 저장은 순서를 지켜 이전 기록의 덮어쓰기를 방지해요.
+let storageWriteQueue=Promise.resolve();
+let saveFailed=false;
+let saveAttempt=0;
+function reportSaveResult(saved,notify){
+  if(saved){
+    const recovered=saveFailed; saveFailed=false;
+    if(notify){sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');}
+    else if(recovered)toast('💾 다시 정상적으로 저장되고 있어요');
+  }else{
+    if(notify||!saveFailed){
+      if(notify)sNo();
+      toast('⚠️ 저장하지 못했어요. 화면을 닫기 전에 🔄에서 진행 코드를 복사해 주세요');
+    }
+    saveFailed=true;
+  }
+  return saved;
+}
+async function saveGame(options){
+  if(!S)return false;
+  const notify=!!(options&&options.notify);
+  const attempt=++saveAttempt;
+  let json;
+  try{json=buildSaveJson();}
+  catch(e){return reportSaveResult(false,notify);}
+  let localSaved=false;
+  try{localStorage.setItem(SAVE_KEY,json);localSaved=true;}catch(e){}
+  const writeHosted=async()=>{
+    try{
+      if(window.storage&&typeof window.storage.set==='function'){
+        const result=await window.storage.set(SAVE_KEY,json);
+        return result!==null&&result!==false;
+      }
+    }catch(e){}
+    return false;
+  };
+  const hostedWrite=storageWriteQueue.then(writeHosted);
+  storageWriteQueue=hostedWrite.then(()=>{},()=>{});
+  if(localSaved)return reportSaveResult(true,notify);
+  const hostedSaved=await hostedWrite;
+  const saved=localSaved||hostedSaved;
+  // 이전 저장 결과가 더 최근의 저장 상태 안내를 덮어쓰지 않게 해요.
+  if(attempt===saveAttempt)reportSaveResult(saved,notify);
+  return saved;
 }
 // ===== 백업 코드 (다른 기기로 이어하기) =====
 function exportCode(){
@@ -1406,17 +1447,21 @@ function parseSave(txt){
   return null;
 }
 async function loadGame(){
-  if(window.storage){
-    try{
-      const r=await window.storage.get(SAVE_KEY);
-      if(r&&r.value){const d=parseSave(r.value); if(d)return d;}
-    }catch(e){}
-  }
+  let local=null,hosted=null;
   try{
     const t=localStorage.getItem(SAVE_KEY);
-    if(t){const d=parseSave(t); if(d)return d;}
+    if(t)local=parseSave(t);
   }catch(e){}
-  return null;
+  try{
+    if(window.storage){
+      const r=await window.storage.get(SAVE_KEY);
+      if(r&&r.value)hosted=parseSave(r.value);
+    }
+  }catch(e){}
+  // 한쪽 저장소만 갱신됐을 때도 가장 최근에 저장된 기록으로 이어가요.
+  const savedAt=d=>d&&Number.isFinite(d.savedAt)?d.savedAt:0;
+  if(local&&hosted)return savedAt(local)>=savedAt(hosted)?local:hosted;
+  return local||hosted;
 }
 let forageUntil=FORAGE_DEF.map(()=>0);
 function applyLoaded(d){
@@ -2233,7 +2278,7 @@ function openStats(){
   if(sb)sb.addEventListener('pointerdown',()=>{S.sex='boy';sPick();updateHUD();saveGame();openStats();});
   $('musbtn').addEventListener('pointerdown',()=>{setMusic(!musicOn);saveGame();openStats();});
   $('sndbtn').addEventListener('pointerdown',()=>{muted=!muted;S.muted=muted;openStats();});
-  $('savebtn2').addEventListener('pointerdown',()=>{saveGame();sYes();toast('💾 저장 완료!');});
+  $('savebtn2').addEventListener('pointerdown',()=>{audio();saveGame({notify:true});});
   let resetArm=false;
   $('resetbtn').addEventListener('pointerdown',e=>{
     if(!resetArm){resetArm=true;e.target.textContent='정말요? 한 번 더!';return;}
@@ -2298,7 +2343,7 @@ function openCollection(){
   }));
 }
 $('btnAchv').addEventListener('pointerdown',()=>{audio();openCollection();});
-$('btnSave').addEventListener('pointerdown',()=>{audio();saveGame();sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');});
+$('btnSave').addEventListener('pointerdown',()=>{audio();saveGame({notify:true});});
 $('btnSync').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;openTransfer();});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
 $('btnRoom').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;warp(enterRoom);});
