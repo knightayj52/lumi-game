@@ -1469,6 +1469,7 @@ function parseSave(txt){
     }
     if(d.attLast!=null&&!date(d.attLast))return null;
     if(d.savedAt!==undefined&&!integer(d.savedAt))return null;
+    for(const k of ['wishAt','elfAt','roomGiftAt'])if(d[k]!==undefined&&!num(d[k]))return null;
     if(d.title!=null&&!has(TITLES,d.title))return null;
     if(d.titles&&!list(d.titles,k=>has(TITLES,k)))return null;
     if(d.track!=null&&!has(QUESTS,d.track))return null;
@@ -1491,7 +1492,7 @@ function parseSave(txt){
     if(d.ownedFloors&&!list(d.ownedFloors,k=>has(FLOORS,k)))return null;
     // 알려진 저장 항목만 넘겨 알 수 없는 값이 게임 상태에 섞이지 않게 해요.
     const result={};
-    for(const k of [...Object.keys(defaults),'savedAt','_talkedToday'])if(Object.prototype.hasOwnProperty.call(d,k))result[k]=d[k];
+    for(const k of [...Object.keys(defaults),'savedAt','_talkedToday','wishAt','elfAt','roomGiftAt'])if(Object.prototype.hasOwnProperty.call(d,k))result[k]=d[k];
     return result;
   }catch(e){return null;}
 }
