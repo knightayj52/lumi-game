@@ -5105,7 +5105,7 @@ function render(){
     drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit);
     sparks.forEach(sp2=>{
       ctx.globalAlpha=Math.max(sp2.life,0);
-      ctx.font=sefont(p2.s);ctx.textAlign='center';
+      ctx.font=efont(sp2.s);ctx.textAlign='center';
       ctx.fillText(sp2.em,sp2.x-cam.x,sp2.y-cam.y);
       ctx.globalAlpha=1;
     });
