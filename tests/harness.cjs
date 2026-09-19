@@ -41,7 +41,7 @@ async function setup(options = {}) {
     return elements.get(id);
   }
   const env = {
-    Date: Clock, console, performance: { now: () => 10000 },
+    Image: options.Image, Date: Clock, console, performance: { now: () => 10000 },
     window: {
       innerWidth: 800, innerHeight: 600, devicePixelRatio: 1,
       storage: options.host, addEventListener: listen('window'),

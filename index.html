@@ -2623,6 +2623,7 @@ function setOutfit(kind,k){
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
     +'<div class="small">꾸미기 매력 보너스: 💖 +<span id="wch">'+gearCharm()+'</span></div></div>';
+  if(!isBoy())html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+storybookPreview.enabled+'">동화풍 공주 체험하기</button><div class="small" style="margin-top:8px">분홍 드레스·양갈래 머리로 새 그림을 체험해요.<br>체험 중에는 선택한 장비 모양이 표시되지 않아요.<br>장비와 능력치는 유지되며, 의상을 선택하면 체험이 끝나요.</div></div>';
   html+='<div class="small" style="margin:8px 4px 4px">👗 드레스</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
@@ -2641,11 +2642,13 @@ function openCloset(){
   html+='</div><div class="small" style="text-align:center;color:#a98">💎 보석은 광산의 드워프에게서 만들어요 · 보유 💎 '+inv('gem')+'</div>';
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   openModal('👗 옷장',html);
-  drawCloset();
+  if(!isBoy())$('storybookToggle').addEventListener('click',toggleStorybookPreview);
+  updateStorybookButton();drawCloset();
   const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes,wand:S.owned.wands,gloves:S.owned.gloves};
   const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wand:WANDS,gloves:GLOVES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('pointerdown',()=>{
     const kind=b.dataset.kind,k=b.dataset.k;
+    storybookPreview.enabled=false;updateStorybookButton();drawCloset();
     if(kind==='wings'){
       if(k==='none'){S.outfit.wings=false;sPick();openCloset();return;}
       const wdf=WINGS[k];
@@ -3812,8 +3815,46 @@ function drawNpcs(){
 }
 
 /* ---- 공주님 ---- */
+// 동화풍 기본 의상 체험. 장비/능력치/저장 데이터와 분리된 세션 전용 표시입니다.
+const storybookPreview={enabled:false,ready:false,loading:false,image:null};
+function updateStorybookButton(){
+  const b=$('storybookToggle');if(!b)return;
+  b.textContent=storybookPreview.enabled?(storybookPreview.loading?'그림을 불러오는 중…':'기존 의상으로 돌아가기'):'동화풍 공주 체험하기';
+  b.setAttribute&&b.setAttribute('aria-pressed',String(storybookPreview.enabled));
+}
+function toggleStorybookPreview(){
+  storybookPreview.enabled=!storybookPreview.enabled;
+  if(storybookPreview.enabled&&!storybookPreview.ready&&!storybookPreview.loading){
+    if(typeof Image==='undefined'){storybookPreview.enabled=false;return;}
+    const img=new Image();storybookPreview.image=img;storybookPreview.loading=true;
+    const failed=()=>{storybookPreview.ready=false;storybookPreview.loading=false;storybookPreview.enabled=false;updateStorybookButton();drawCloset();toast('그림을 불러오지 못했어요. 다시 눌러 주세요.');};
+    img.onload=()=>{
+      if(img.naturalWidth!==576||img.naturalHeight!==540){failed();return;}
+      storybookPreview.ready=true;storybookPreview.loading=false;updateStorybookButton();drawCloset();
+    };
+    img.onerror=failed;
+    img.src='assets/lumi-storybook-walk.webp';
+  }
+  updateStorybookButton();drawCloset();
+}
+function storybookPose(walkT,moving,facing){
+  const dx=facing?facing.dx:0,dy=facing?facing.dy:1;
+  return {row:Math.abs(dx)>Math.abs(dy)?1:(dy<0?2:0),flip:Math.abs(dx)>Math.abs(dy)&&dx<0,
+    frame:moving?Math.floor(Math.max(0,walkT)*8)%4:1};
+}
+function drawStorybookPrincess(g,x,y,s,walkT,moving,facing){
+  if(!storybookPreview.enabled||!storybookPreview.ready||isBoy())return false;
+  const p=storybookPose(walkT,moving,facing),unit=.6*s;
+  g.save();g.translate(x,y);
+  g.fillStyle='rgba(46,70,57,.17)';g.beginPath();g.ellipse(0,2*s,14*s,4*s,0,0,Math.PI*2);g.fill();
+  if(p.flip)g.scale(-1,1);
+  g.drawImage(storybookPreview.image,p.frame*144,p.row*180,144,180,-72*unit,-172*unit,144*unit,180*unit);
+  g.restore();return true;
+}
+
 // 동화풍 3등신 캐릭터. 발 위치와 기존 의상 데이터는 그대로 사용해요.
-function drawPrincess(g,x,y,s,walkT,moving,o){
+function drawPrincess(g,x,y,s,walkT,moving,o,facing){
+  if(drawStorybookPrincess(g,x,y,s,walkT,moving,facing))return;
   g.save();g.translate(x,y);g.scale(s,s);
   const sw=moving?Math.sin(walkT*10):0,bob=moving?Math.abs(sw)*1.6:Math.sin(T*2)*.35;
   const boy=isBoy(),hair=HAIRS[o.hair].c,cloth=DRESSES[o.dress].c||'#b8a0e4';
@@ -5181,7 +5222,7 @@ function render(){
   if(world==='port'){
     drawPortWalk();
     drawPetFollow();
-    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
     sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=efont(p2.s);ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
     drawMini();
     return;
@@ -5189,7 +5230,7 @@ function render(){
   if(world==='in'){
     drawInterior();
     drawPetFollow();
-    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit);
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
     sparks.forEach(sp2=>{
       ctx.globalAlpha=Math.max(sp2.life,0);
       ctx.font=efont(sp2.s);ctx.textAlign='center';
@@ -5203,7 +5244,7 @@ function render(){
   if(world==='room'){
     drawRoom();
     drawPetFollow();
-    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
     sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=efont(p2.s);ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
     drawMini();
     return;
@@ -5211,7 +5252,7 @@ function render(){
   if(world==='mine'){
     drawMine();
     drawPetFollow();
-    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
     sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=efont(p2.s);ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
     drawMini();
     return;
@@ -5219,7 +5260,7 @@ function render(){
   if(world==='garden'){
     drawGarden();
     drawPetFollow();
-    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit);
+    drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
     sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=efont(p2.s);ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
     drawMini();
     return;
@@ -5250,7 +5291,7 @@ function render(){
     }
   });
   drawPetFollow();
-  drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit);
+  drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
   // 반짝이
   sparks.forEach(p=>{
     ctx.globalAlpha=Math.max(p.life,0);
