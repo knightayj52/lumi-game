@@ -243,8 +243,8 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <div id="introart">🌸👸🏰</div>
   <h1>루미 공주의 숲속 왕국</h1>
   <p>싸움도 괴물도 없는 평화로운 왕국!<br>동물 친구들을 도와주며<br><b>매력 · 지혜 · 친절 · 리더십</b>을 키워요.</p>
-  <div class="howrow"><div class="howic">🕹️</div><div>화면 왼쪽을 문지르면 공주님이 움직여요</div></div>
-  <div class="howrow"><div class="howic">🌟</div><div>초록 버튼 하나로 말하기 · 줍기 · 농사 · 낚시!</div></div>
+  <div class="howrow"><div class="howic">🕹️</div><div>이동: 화면 왼쪽 드래그 또는 방향키·WASD</div></div>
+  <div class="howrow"><div class="howic">🌟</div><div>행동: 초록 버튼 또는 스페이스바로 말하기·줍기!</div></div>
   <div class="howrow"><div class="howic">🐰</div><div>먼저 밭 근처의 토끼 토토를 만나 보세요</div></div>
   <div class="howrow"><div class="howic">🏰</div><div>성문으로 들어가면 사람 친구들이 있어요. 명성을 쌓으면 주민이 늘어나요!</div></div>
   <div class="howrow"><div class="howic">🗺️</div><div>왕국은 사방으로 넓어요! 북쪽 🌸꽃 언덕, 서쪽 🌲속삭이는 숲, 남쪽 ⛵햇살 항구를 모두 탐험해 보세요.</div></div>
@@ -1658,9 +1658,46 @@ const player={x:(OX+20)*TILE,y:(OY+8.6)*TILE,r:13,spd:175,vx:0,vy:0,walkT:0,movi
 const joy={active:false,id:null,bx:0,by:0,dx:0,dy:0};
 const jz=$('joyzone'),jb=$('joybase'),jt=$('joythumb');
 let uiOpen=0; // 모달/대화 열림 수 (이동 잠금)
+const heldKeys=new Set();
+function isTypingTarget(target){
+  return !!(target&&(target.isContentEditable||
+    (target.closest&&target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'))));
+}
+function gameInputAllowed(){
+  return !!S&&$('intro').style.display==='none'&&uiOpen===0&&fadeDir===0&&!document.hidden;
+}
+function resetInput(){
+  heldKeys.clear();joyEnd();
+}
+function movementInput(){
+  if(!gameInputAllowed()||isTypingTarget(document.activeElement)){
+    resetInput();return {dx:0,dy:0};
+  }
+  if(joy.active)return joy;
+  return {
+    dx:Number(heldKeys.has('ArrowRight')||heldKeys.has('KeyD'))-Number(heldKeys.has('ArrowLeft')||heldKeys.has('KeyA')),
+    dy:Number(heldKeys.has('ArrowDown')||heldKeys.has('KeyS'))-Number(heldKeys.has('ArrowUp')||heldKeys.has('KeyW'))
+  };
+}
+window.addEventListener('keydown',e=>{
+  if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey||isTypingTarget(e.target)){
+    resetInput();return;
+  }
+  const move=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code);
+  if(!move&&e.code!=='Space')return;
+  if(!gameInputAllowed())return;
+  // 버튼의 스페이스바 기본 동작과 게임 행동이 동시에 실행되지 않게 해요.
+  if(e.code==='Space'&&e.target&&e.target.closest&&e.target.closest('button, a'))return;
+  e.preventDefault();
+  if(e.repeat||heldKeys.has(e.code))return;
+  heldKeys.add(e.code);
+  if(e.code==='Space'){audio();findNearest();doAction();}
+});
+window.addEventListener('keyup',e=>{heldKeys.delete(e.code);});
+document.addEventListener('focusin',e=>{if(isTypingTarget(e.target))resetInput();});
 
 jz.addEventListener('pointerdown',e=>{
-  if(uiOpen>0)return;
+  if(!gameInputAllowed())return;
   e.preventDefault(); // 길게 눌러도 선택/메뉴가 뜨지 않게
   joy.active=true;joy.id=e.pointerId;joy.bx=e.clientX;joy.by=e.clientY;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='block';
@@ -1686,8 +1723,8 @@ window.addEventListener('pointercancel',joyEnd);
 // 길게 누를 때 뜨는 메뉴/선택이 조작을 끊는 것을 방지
 window.addEventListener('contextmenu',e=>e.preventDefault());
 // 앱 전환·화면 꺼짐 후 유령 조작 방지
-window.addEventListener('blur',()=>joyEnd());
-document.addEventListener('visibilitychange',()=>{if(document.hidden)joyEnd();});
+window.addEventListener('blur',resetInput);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});
 
 /* ---- 이동 가능 판정 ---- */
 function tileType(px,py){
@@ -2061,6 +2098,7 @@ function openFishDex(){
 const dEl=$('dialog'),dport=$('dport'),dname=$('dname'),dtext=$('dtext'),dchoices=$('dchoices'),dnext=$('dnext');
 let dlg={pages:[],idx:0,choices:null,open:false};
 function dialog(portrait,name,pages,choices){
+  resetInput();
   dlg={pages,idx:0,choices:choices||null,open:true};
   dport.textContent=portrait; dname.textContent=name;
   uiOpen++; dEl.style.display='block'; showPage();
@@ -2314,6 +2352,7 @@ function openNpc(id){
 /* ============ 모달 공통 ============ */
 const mwrap=$('modalwrap'),mtitle=$('mtitle'),mbody=$('mbody');
 function openModal(title,html){
+  resetInput();
   mtitle.textContent=title; mbody.innerHTML=html;
   if(mwrap.style.display!=='flex'){mwrap.style.display='flex';uiOpen++;}
   sTap();
@@ -3999,7 +4038,7 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
 /* ============ 성 내부 & 왕국 명성 ============ */
 let world='out'; // 'out' 숲 / 'in' 성안 / 'garden' 별빛 정원
 let fadeV=0,fadeDir=0,fadePend=null; // 관문 통과 페이드 연출
-function warp(fn){ if(fadeDir!==0)return; fadeDir=1; fadePend=fn; }
+function warp(fn){ if(fadeDir!==0)return; resetInput(); fadeDir=1; fadePend=fn; }
 const IW=20, IH=14;
 const GW=18, GH=13; // 별빛 정원 크기
 const RW=9, RH=7;    // 내 방 크기
@@ -5140,8 +5179,8 @@ function update(dt){
   T+=dt;
   if(fadeDir!==0)return; // 화면 전환 중
   // 이동
-  const canMove=uiOpen===0;
-  let mvx=canMove?joy.dx:0, mvy=canMove?joy.dy:0;
+  const input=movementInput();
+  let mvx=input.dx, mvy=input.dy;
   const len=Math.hypot(mvx,mvy);
   player.moving=len>0.15;
   if(player.moving){

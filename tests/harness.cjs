@@ -8,6 +8,8 @@ const noop = () => {};
 
 async function setup(options = {}) {
   const events = {}, elements = new Map(), writes = [], frames = [];
+  const listeners = { window: {}, document: {} };
+  const listen = scope => (name, fn) => (listeners[scope][name] ||= []).push(fn);
   let raw = options.saved || null;
   const storage = { fail: !!options.fail, readFail: false };
   let clock = options.clock || new Date(2026, 8, 19, 12).getTime();
@@ -42,11 +44,11 @@ async function setup(options = {}) {
     Date: Clock, console, performance: { now: () => 10000 },
     window: {
       innerWidth: 800, innerHeight: 600, devicePixelRatio: 1,
-      storage: options.host, addEventListener: noop,
+      storage: options.host, addEventListener: listen('window'),
     },
     document: {
       getElementById: element, createElement: () => element('created'),
-      addEventListener: noop, body: { appendChild: noop },
+      addEventListener: listen('document'), body: { appendChild: noop },
     },
     localStorage: {
       setItem(key, value) {
@@ -70,6 +72,11 @@ async function setup(options = {}) {
   await new Promise(setImmediate);
   return {
     env, writes, storage, frames, events, elements,
+    dispatch(scope, name, fields = {}) {
+      const event = { preventDefault() { this.defaultPrevented = true; }, ...fields };
+      for (const fn of listeners[scope][name] || []) fn(event);
+      return event;
+    },
     get raw() { return raw; },
     setClock(value) { clock = value; },
     run(source) { return vm.runInContext(source, env); },
