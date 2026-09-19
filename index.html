@@ -2484,6 +2484,21 @@ $('btnCloset').addEventListener('pointerdown',()=>{audio();openCloset();});
 
 /* ============ 상점 ============ */
 let shopTab='buy';
+function shopSellPrice(k){
+  const m=META[k];
+  if(!m||!Number.isFinite(m.sell)||m.sell<=0)return 0;
+  // 개당 가격을 먼저 반올림해 나눠 팔아도 같은 금액을 받게 해요.
+  return Math.max(1,Math.round(m.sell*sellMul()*coinMul()));
+}
+function sellShopItem(k,n){
+  const price=shopSellPrice(k);
+  if(!price||!Number.isSafeInteger(n)||n<=0||inv(k)<n)return false;
+  const got=price*n;
+  if(!Number.isSafeInteger(got))return false;
+  addInv(k,-n);S.coins+=got;
+  sCoin();toast('🪙 +'+got);updateHUD();saveGame();openShop();
+  return true;
+}
 function openShop(){
   let html='<div class="tabbtns"><button class="tabb'+(shopTab==='buy'?' on':'')+'" id="tbuy">사기 🛒</button>'
     +'<button class="tabb'+(shopTab==='sell'?' on':'')+'" id="tsell">팔기 🪙</button></div>';
@@ -2500,7 +2515,7 @@ function openShop(){
     for(const k of sellables){
       const m=META[k];
       html+='<div class="card rowline"><div style="font-size:24px">'+m.i+'</div>'
-        +'<div class="grow"><div>'+m.n+' <span class="small">×'+S.inv[k]+'</span></div><div class="small">개당 🪙 '+m.sell+'</div></div>'
+        +'<div class="grow"><div>'+m.n+' <span class="small">×'+S.inv[k]+'</span></div><div class="small">개당 🪙 '+shopSellPrice(k)+'</div></div>'
         +'<button class="pillbtn mint" data-sell1="'+k+'">1개</button>'
         +'<button class="pillbtn" data-sellall="'+k+'">전부</button></div>';
     }
@@ -2516,12 +2531,11 @@ function openShop(){
     S.coins-=m.buy;addInv(k,1);sCoin();updateHUD();openShop();
   }));
   mbody.querySelectorAll('[data-sell1]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const k=b.dataset.sell1;if(inv(k)<=0)return;
-    addInv(k,-1);S.coins+=META[k].sell;sCoin();updateHUD();openShop();
+    sellShopItem(b.dataset.sell1,1);
   }));
   mbody.querySelectorAll('[data-sellall]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const k=b.dataset.sellall,n=inv(k);if(n<=0)return;
-    addInv(k,-n);const got=Math.round(META[k].sell*n*sellMul()*coinMul());S.coins+=got;sCoin();toast('🪙 +'+got);updateHUD();openShop();
+    const k=b.dataset.sellall;
+    sellShopItem(k,inv(k));
   }));
 }
 
