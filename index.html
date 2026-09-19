@@ -505,6 +505,7 @@ const HAIRS={
   white:{n:'백금 머리',c:'#efeaf2',charm:4,buy:140},
 };
 const HAIRSTYLES={
+  short:{n:'짧은 머리',charm:0,how:'처음부터'},
   long:{n:'긴 생머리',charm:0,how:'처음부터'},
   twin:{n:'트윈테일',charm:2,buy:70},
   wave:{n:'웨이브 머리',charm:2,buy:70},
@@ -1146,7 +1147,7 @@ function freshState(){return{
   stats:{charm:1,wis:1,kind:1,lead:1},
   inv:{carrotSeed:3,strawSeed:1},
   outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false,wand:false,gloves:false},
-  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['long'],accs:['crown'],shoes:['pink'],wings:[],wands:[],gloves:[]},
+  owned:{dresses:['pink'],hairs:['brown','black'],hairstyles:['short','long'],accs:['crown'],shoes:['pink'],wings:[],wands:[],gloves:[]},
   q:{}, deerTold:{}, repeats:0,
   plots:PLOT_DEF.map(()=>({state:'empty',crop:null,elapsed:0})),
   forage:FORAGE_DEF.map(()=>0), // 남은 리스폰(ms), 0이면 있음
@@ -1294,29 +1295,40 @@ const ATT_REWARD=[
   {coins:20}, {coins:30}, {coins:40,item:['gem',0]}, {coins:50}, {coins:60},
   {coins:70}, {coins:100,item:['evostone',1]},
 ];
-function rollDaily(){
-  const seed=todayStr(); let h=0; for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;
+function rollDaily(seed=todayStr()){
+  let h=0; for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;
   const idx=[]; const pool=DAILY_POOL.slice();
   for(let i=0;i<3&&pool.length;i++){const j=h%pool.length; h=(h*1103515245+12345)>>>0; idx.push(pool.splice(j,1)[0]);}
   return idx.map(d=>({id:d.id,prog:0}));
 }
-function ensureDaily(){
-  if(!S.daily||S.daily.date!==todayStr()){
-    S.daily={date:todayStr(), tasks:rollDaily(), claimed:{}};
+function ensureDaily(persist=true){
+  if(!S)return;
+  const td=todayStr();
+  if(!S.daily||S.daily.date!==td){
+    S.daily={date:td, tasks:rollDaily(td), claimed:{}};
+    S._talkedToday={};
     // 출석 처리
-    const last=S.attLast, td=todayStr();
+    const last=S.attLast;
     if(last!==td){
       const y=new Date(); y.setDate(y.getDate()-1);
       const yStr=y.getFullYear()+'-'+(y.getMonth()+1)+'-'+y.getDate();
       S.attStreak=(last===yStr)?((S.attStreak||0)+1):1;
       S.attLast=td; S.attToday=false;
     }
-    saveGame();
+    if(persist)saveGame();
   }
 }
-function countTalk(id){ if(!S.daily)return; if(!S._talkedToday)S._talkedToday={}; if(S._talkedToday[id])return; S._talkedToday[id]=true; dailyProgress('talk3'); }
+function countTalk(id){
+  if(!S)return;
+  ensureDaily();
+  if(!S._talkedToday)S._talkedToday={};
+  if(S._talkedToday[id])return;
+  S._talkedToday[id]=true; dailyProgress('talk3');
+}
 function dailyProgress(kind,amt){
-  if(!S||!S.daily)return; amt=amt||1;
+  if(!S)return;
+  ensureDaily();
+  amt=amt||1;
   let changed=false;
   for(const t of S.daily.tasks){ if(t.id===kind){ const g=DAILY_POOL.find(d=>d.id===kind).goal;
     if(t.prog<g){t.prog=Math.min(g,t.prog+amt); changed=true;} } }
@@ -1330,19 +1342,60 @@ function fishCount(){return FISHKEYS.reduce((a,k)=>a+inv(k),0);}
 /* ---- 저장/불러오기 (클로드 저장소 + 브라우저 저장소 겸용) ---- */
 const SAVE_KEY='lumi-kingdom-save';
 let saveTimer=0;
+let lastSaveTimestamp=0;
 function buildSaveJson(){
   const data=JSON.parse(JSON.stringify(S));
+  data.savedAt=Math.max(Date.now(),lastSaveTimestamp+1,Number.isFinite(S.savedAt)?S.savedAt+1:0);
+  lastSaveTimestamp=data.savedAt;
   data.plots=S.plots.map(p=>{const q={state:p.state,crop:p.crop,elapsed:0};if(p.state==='grow')q.elapsed=now()-p.t0;return q;});
   data.forage=FORAGE_DEF.map((f,i)=>{const u=forageUntil[i];return u>now()?Math.ceil(u-now()):0;});
   data.animals=S.animals.map(a=>({t:a.t,pen:a.pen,slot:a.slot,fed:a.fed,ready:a.ready,elapsed:(a.fed&&!a.ready)?now()-a.t0:0}));
   return JSON.stringify(data);
 }
-async function saveGame(){
-  if(!S)return;
-  let json=null;
-  try{ json=buildSaveJson(); }catch(e){return;}
-  if(window.storage){try{await window.storage.set(SAVE_KEY,json);}catch(e){}}
-  try{localStorage.setItem(SAVE_KEY,json);}catch(e){}
+// 브라우저에는 즉시 저장하고, 비동기 저장은 순서를 지켜 이전 기록의 덮어쓰기를 방지해요.
+let storageWriteQueue=Promise.resolve();
+let saveFailed=false;
+let saveAttempt=0;
+function reportSaveResult(saved,notify){
+  if(saved){
+    const recovered=saveFailed; saveFailed=false;
+    if(notify){sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');}
+    else if(recovered)toast('💾 다시 정상적으로 저장되고 있어요');
+  }else{
+    if(notify||!saveFailed){
+      if(notify)sNo();
+      toast('⚠️ 저장하지 못했어요. 화면을 닫기 전에 🔄에서 진행 코드를 복사해 주세요');
+    }
+    saveFailed=true;
+  }
+  return saved;
+}
+async function saveGame(options){
+  if(!S)return false;
+  const notify=!!(options&&options.notify);
+  const attempt=++saveAttempt;
+  let json;
+  try{json=buildSaveJson();}
+  catch(e){return reportSaveResult(false,notify);}
+  let localSaved=false;
+  try{localStorage.setItem(SAVE_KEY,json);localSaved=true;}catch(e){}
+  const writeHosted=async()=>{
+    try{
+      if(window.storage&&typeof window.storage.set==='function'){
+        const result=await window.storage.set(SAVE_KEY,json);
+        return result!==null&&result!==false;
+      }
+    }catch(e){}
+    return false;
+  };
+  const hostedWrite=storageWriteQueue.then(writeHosted);
+  storageWriteQueue=hostedWrite.then(()=>{},()=>{});
+  if(localSaved)return reportSaveResult(true,notify);
+  const hostedSaved=await hostedWrite;
+  const saved=localSaved||hostedSaved;
+  // 이전 저장 결과가 더 최근의 저장 상태 안내를 덮어쓰지 않게 해요.
+  if(attempt===saveAttempt)reportSaveResult(saved,notify);
+  return saved;
 }
 // ===== 백업 코드 (다른 기기로 이어하기) =====
 function exportCode(){
@@ -1355,24 +1408,28 @@ function exportCode(){
   }catch(e){return null;}
 }
 function importCode(code){
+  let previous=null;
   try{
-    code=(code||'');
-    // 접두어가 어디에 있든 그 뒤부터 사용
+    if(typeof code!=='string'||code.length>3000000)return false;
     const i=code.indexOf('LUMI1:');
     if(i<0)return false;
-    let b64=code.slice(i+6);
-    // 붙여넣기 중 섞인 공백·줄바꿈 모두 제거
-    b64=b64.replace(/\s+/g,'');
-    // 코드에 쓰이지 않는 문자 제거 (실수로 딸려온 문자 방지)
-    b64=b64.replace(/[^A-Za-z0-9\-_+/=]/g,'');
-    // base64url → base64 복원 + 패딩 보정
+    let b64=code.slice(i+6).replace(/\s+/g,'');
+    if(!/^[A-Za-z0-9_+\/-]+={0,2}$/.test(b64)||b64.replace(/=+$/,'').length%4===1)return false;
     b64=b64.replace(/-/g,'+').replace(/_/g,'/');
     while(b64.length%4)b64+='=';
-    const json=decodeURIComponent(escape(atob(b64)));
-    const d=parseSave(json);
+    const d=parseSave(decodeURIComponent(escape(atob(b64))));
     if(!d)return false;
-    applyLoaded(d); saveGame(); return true;
-  }catch(e){return false;}
+    previous={state:S,forage:forageUntil,world,activeNation,player:{...player},muted,musicOn};
+    applyLoaded(d,false);
+  }catch(e){
+    if(previous){
+      S=previous.state;forageUntil=previous.forage;world=previous.world;
+      activeNation=previous.activeNation;Object.assign(player,previous.player);
+      muted=previous.muted;musicOn=previous.musicOn;
+    }
+    return false;
+  }
+  saveGame(); return true;
 }
 function openTransfer(){
   const code=exportCode()||'(오류)';
@@ -1402,24 +1459,115 @@ function openTransfer(){
   });
 }
 function parseSave(txt){
-  try{const d=JSON.parse(txt); if(d&&d.v===1)return d;}catch(e){}
-  return null;
+  try{
+    if(typeof txt!=='string'||txt.length>2000000)return null;
+    const d=JSON.parse(txt,(key,value)=>{
+      if(['__proto__','prototype','constructor'].includes(key))throw new Error('Invalid key');
+      return value;
+    });
+    const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+    const num=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0;
+    const integer=x=>num(x)&&Number.isSafeInteger(x);
+    const has=(defs,k)=>typeof k==='string'&&Object.prototype.hasOwnProperty.call(defs,k);
+    const map=(x,check)=>obj(x)&&Object.entries(x).every(([k,v])=>check(v,k));
+    const list=(x,check)=>Array.isArray(x)&&x.every(check);
+    const flag=x=>typeof x==='boolean'||x===0||x===1;
+    const date=x=>typeof x==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(x);
+    if(!obj(d)||d.v!==1)return null;
+    for(const k of ['coins','xp','level','stats','inv','outfit','owned','q','plots','forage']){
+      if(!Object.prototype.hasOwnProperty.call(d,k))return null;
+    }
+    const defaults=freshState();
+    // 이전 버전에 없던 항목은 허용하되, 포함된 항목의 자료형을 확인해요.
+    for(const [k,v] of Object.entries(defaults)){
+      if(!(k in d))continue;
+      if(typeof v==='boolean'&&typeof d[k]!=='boolean')return null;
+      if(typeof v==='number'&&!integer(d[k]))return null;
+      if(typeof v==='string'&&typeof d[k]!=='string')return null;
+      if(Array.isArray(v)&&!Array.isArray(d[k]))return null;
+      if(obj(v)&&!obj(d[k]))return null;
+    }
+    if(d.level<1||d.level>LEVEL_XP.length||d.xp<LEVEL_XP[d.level-1])return null;
+    if(d.level<LEVEL_XP.length&&d.xp>=LEVEL_XP[d.level])return null;
+    if(d.name!==undefined&&d.name.length>6)return null;
+    if(d.sex!==undefined&&!['boy','girl'].includes(d.sex))return null;
+    if(!map(d.stats,(v,k)=>has(STATN,k)&&num(v))||!map(d.inv,(v,k)=>has(META,k)&&integer(v)))return null;
+    const gear={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wings:WINGS,wand:WANDS,gloves:GLOVES};
+    for(const k of ['dress','hair','acc'])if(!has(gear[k],d.outfit[k]))return null;
+    for(const [k,v] of Object.entries(d.outfit)){
+      if(!has(gear,k))return null;
+      if(['wings','wand','gloves'].includes(k)&&(v===false||(k==='wings'&&v===true)))continue;
+      if(!has(gear[k],v))return null;
+    }
+    const owned={dresses:DRESSES,hairs:HAIRS,hairstyles:HAIRSTYLES,accs:ACCS,shoes:SHOES,wings:WINGS,wands:WANDS,gloves:GLOVES};
+    for(const k of ['dresses','hairs','accs'])if(!Array.isArray(d.owned[k]))return null;
+    for(const [k,v] of Object.entries(d.owned)){
+      if(!has(owned,k))return null;
+      if(k==='wings'&&typeof v==='boolean')continue;
+      if(!list(v,id=>has(owned[k],id)))return null;
+    }
+    if(!map(d.q,(v,k)=>has(QUESTS,k)&&obj(v)&&['none','active','done'].includes(v.s)&&(v.rep===undefined||typeof v.rep==='boolean')))return null;
+    if(!list(d.plots,p=>obj(p)&&['empty','seed','grow','ready'].includes(p.state)&&(p.state==='empty'||has(CROPS,p.crop))&&(p.elapsed===undefined||num(p.elapsed))))return null;
+    if(!list(d.forage,num))return null;
+    if(d.pets&&!list(d.pets,p=>obj(p)&&has(PETSPEC,p.sp)&&integer(p.lv)&&p.lv>=1&&p.lv<=10&&integer(p.xp)&&(p.evo===undefined||typeof p.evo==='boolean')))return null;
+    if(d.activePet!=null&&(!integer(d.activePet)||!d.pets||d.activePet>=d.pets.length))return null;
+    if(d.pens!==undefined&&(d.pens<2||d.pens>RANCH_PENS.length))return null;
+    if(d.animals&&!list(d.animals,a=>obj(a)&&has(LIVESTOCK,a.t)&&integer(a.pen)&&a.pen<(d.pens||2)&&integer(a.slot)&&a.slot<2&&typeof a.fed==='boolean'&&typeof a.ready==='boolean'&&(a.elapsed===undefined||num(a.elapsed))))return null;
+    if(d.animals&&new Set(d.animals.map(a=>a.pen+','+a.slot)).size!==d.animals.length)return null;
+    if(d.daily!=null){
+      const day=d.daily,defs=Object.fromEntries(DAILY_POOL.map(t=>[t.id,t]));
+      if(!obj(day)||!date(day.date)||!list(day.tasks,t=>obj(t)&&has(defs,t.id)&&integer(t.prog)&&t.prog<=defs[t.id].goal)||!map(day.claimed,(v,k)=>has(defs,k)&&flag(v)))return null;
+      if(day.tasks.length!==3||new Set(day.tasks.map(t=>t.id)).size!==3)return null;
+      if(day.bonus!==undefined&&typeof day.bonus!=='boolean')return null;
+    }
+    if(d.attLast!=null&&!date(d.attLast))return null;
+    if(d.savedAt!==undefined&&!integer(d.savedAt))return null;
+    for(const k of ['wishAt','elfAt','roomGiftAt'])if(d[k]!==undefined&&!num(d[k]))return null;
+    if(d.title!=null&&!has(TITLES,d.title))return null;
+    if(d.titles&&!list(d.titles,k=>has(TITLES,k)))return null;
+    if(d.track!=null&&!has(QUESTS,d.track))return null;
+    if(d.portAt!=null&&!NATIONS.some(n=>n.id===d.portAt))return null;
+    if(d.trade&&(!map(d.trade.done,integer)||!Number.isSafeInteger(d.trade.seen)||d.trade.seen< -1))return null;
+    for(const k of ['deerTold','met','queenGift','dex','stamps','legendex','legendClaim','achv','_talkedToday']){
+      if(d[k]!==undefined&&!map(d[k],flag))return null;
+    }
+    if(d.fishdex&&!map(d.fishdex,(v,k)=>has(META,k)&&integer(v)))return null;
+    if(d.cookdex&&!map(d.cookdex,(v,k)=>has(RECIPES,k)&&integer(v)))return null;
+    if(d.friend&&!map(d.friend,(v,k)=>has(HUMANS,k)&&integer(v)&&v<=5))return null;
+    if(d.hreq&&!map(d.hreq,(v,k)=>has(HUMANS,k)&&obj(v)&&typeof v.say==='string'&&map(v.need,(n,id)=>(has(META,id)||id==='fishAny')&&integer(n))))return null;
+    if(d.roomOwned&&!list(d.roomOwned,k=>has(FURN,k)))return null;
+    if(d.roomInv&&!map(d.roomInv,(v,k)=>has(FURN,k)&&integer(v)))return null;
+    const cols=d.roomGridV2?5:7,rows=d.roomGridV2?3:4;
+    if(d.room&&!map(d.room,(v,k)=>{const m=/^(\d+),(\d+)$/.exec(k);return !!m&&+m[1]<cols&&+m[2]<rows&&has(FURN,v)&&!FURN[v].wall;}))return null;
+    if(d.roomWall&&!map(d.roomWall,(v,k)=>/^\d+$/.test(k)&&+k<cols&&has(FURN,v)&&!!FURN[v].wall))return null;
+    if(d.roomDeco&&(!has(WALLS,d.roomDeco.wall)||!has(FLOORS,d.roomDeco.floor)))return null;
+    if(d.ownedWalls&&!list(d.ownedWalls,k=>has(WALLS,k)))return null;
+    if(d.ownedFloors&&!list(d.ownedFloors,k=>has(FLOORS,k)))return null;
+    // 알려진 저장 항목만 넘겨 알 수 없는 값이 게임 상태에 섞이지 않게 해요.
+    const result={};
+    for(const k of [...Object.keys(defaults),'savedAt','_talkedToday','wishAt','elfAt','roomGiftAt'])if(Object.prototype.hasOwnProperty.call(d,k))result[k]=d[k];
+    return result;
+  }catch(e){return null;}
 }
 async function loadGame(){
-  if(window.storage){
-    try{
-      const r=await window.storage.get(SAVE_KEY);
-      if(r&&r.value){const d=parseSave(r.value); if(d)return d;}
-    }catch(e){}
-  }
+  let local=null,hosted=null;
   try{
     const t=localStorage.getItem(SAVE_KEY);
-    if(t){const d=parseSave(t); if(d)return d;}
+    if(t)local=parseSave(t);
   }catch(e){}
-  return null;
+  try{
+    if(window.storage){
+      const r=await window.storage.get(SAVE_KEY);
+      if(r&&r.value)hosted=parseSave(r.value);
+    }
+  }catch(e){}
+  // 한쪽 저장소만 갱신됐을 때도 가장 최근에 저장된 기록으로 이어가요.
+  const savedAt=d=>d&&Number.isFinite(d.savedAt)?d.savedAt:0;
+  if(local&&hosted)return savedAt(local)>=savedAt(hosted)?local:hosted;
+  return local||hosted;
 }
 let forageUntil=FORAGE_DEF.map(()=>0);
-function applyLoaded(d){
+function applyLoaded(d,persist=true){
   S=Object.assign(freshState(),d);
   S.stats=Object.assign({charm:1,wis:1,kind:1,lead:1},d.stats||{});
   S.plots=PLOT_DEF.map((_,i)=>{
@@ -1438,6 +1586,7 @@ function applyLoaded(d){
   if(!S.outfit.hairstyle)S.outfit.hairstyle='long';
   if(!S.outfit.shoes)S.outfit.shoes='pink';
   if(!S.owned.hairstyles)S.owned.hairstyles=['long'];
+  if(!S.owned.hairstyles.includes('short'))S.owned.hairstyles.push('short');
   if(!S.owned.shoes)S.owned.shoes=['pink'];
   if(!Array.isArray(S.owned.wings))S.owned.wings=(S.owned.wings===true?['butterfly']:[]);
   if(S.outfit.wings===true)S.outfit.wings='butterfly';
@@ -1479,7 +1628,7 @@ function applyLoaded(d){
   if(typeof S.raceQ!=='number')S.raceQ=0;
   if(!S.legendex)S.legendex={}; if(!S.legendClaim)S.legendClaim={};
   if(!S.achv)S.achv={}; if(!Array.isArray(S.titles))S.titles=[]; if(S.title===undefined)S.title=null;
-  if(S.attStreak===undefined)S.attStreak=0; ensureDaily();
+  if(S.attStreak===undefined)S.attStreak=0; ensureDaily(persist);
   if(S.sex!=='boy'&&S.sex!=='girl')S.sex='girl';
   // 다른 왕국 항구에 있었다면 그 항구에서 이어가기
   if(S.portAt){
@@ -2233,7 +2382,7 @@ function openStats(){
   if(sb)sb.addEventListener('pointerdown',()=>{S.sex='boy';sPick();updateHUD();saveGame();openStats();});
   $('musbtn').addEventListener('pointerdown',()=>{setMusic(!musicOn);saveGame();openStats();});
   $('sndbtn').addEventListener('pointerdown',()=>{muted=!muted;S.muted=muted;openStats();});
-  $('savebtn2').addEventListener('pointerdown',()=>{saveGame();sYes();toast('💾 저장 완료!');});
+  $('savebtn2').addEventListener('pointerdown',()=>{audio();saveGame({notify:true});});
   let resetArm=false;
   $('resetbtn').addEventListener('pointerdown',e=>{
     if(!resetArm){resetArm=true;e.target.textContent='정말요? 한 번 더!';return;}
@@ -2298,7 +2447,7 @@ function openCollection(){
   }));
 }
 $('btnAchv').addEventListener('pointerdown',()=>{audio();openCollection();});
-$('btnSave').addEventListener('pointerdown',()=>{audio();saveGame();sYes();toast('💾 저장 완료! 언제든 이어서 할 수 있어요');});
+$('btnSave').addEventListener('pointerdown',()=>{audio();saveGame({notify:true});});
 $('btnSync').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;openTransfer();});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
 $('btnRoom').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;warp(enterRoom);});
@@ -2350,6 +2499,13 @@ function openQuests(){
       +'</div><div style="text-align:right"><div style="font-size:12px;color:'+cc+';white-space:nowrap">'+chip+'</div>'+pin+'</div></div></div>';
   }
   ensureDaily();
+  const dailyDate=S.daily.date;
+  function refreshChangedDay(){
+    ensureDaily();
+    if(S.daily.date===dailyDate)return false;
+    openQuests();toast('📅 날짜가 바뀌었어요. 오늘의 부탁과 보상을 확인해 주세요');
+    return true;
+  }
   // 출석
   const attN=Math.min((S.attStreak||1),7), att=ATT_REWARD[attN-1];
   let dh='<div class="card" style="background:#eef7ff"><div style="text-align:center;font-size:14px">📅 <b>출석 '+attN+'일째</b> (연속)</div>'
@@ -2380,6 +2536,7 @@ function openQuests(){
   }));
   const ac=$('attclaim');
   if(ac)ac.addEventListener('pointerdown',()=>{
+    if(refreshChangedDay())return;
     if(S.attToday)return; S.attToday=true;
     const r=ATT_REWARD[Math.min((S.attStreak||1),7)-1];
     S.coins+=r.coins; if(r.item)addInv(r.item[0],r.item[1]||1);
@@ -2388,6 +2545,7 @@ function openQuests(){
     updateHUD();saveGame();openQuests();
   });
   mbody.querySelectorAll('[data-dq]').forEach(b=>b.addEventListener('pointerdown',()=>{
+    if(refreshChangedDay())return;
     const id=b.dataset.dq, t=S.daily.tasks.find(x=>x.id===id), d=DAILY_POOL.find(x=>x.id===id);
     if(!t||t.prog<d.goal||S.daily.claimed[id])return;
     S.daily.claimed[id]=true;
@@ -2484,6 +2642,21 @@ $('btnCloset').addEventListener('pointerdown',()=>{audio();openCloset();});
 
 /* ============ 상점 ============ */
 let shopTab='buy';
+function shopSellPrice(k){
+  const m=META[k];
+  if(!m||!Number.isFinite(m.sell)||m.sell<=0)return 0;
+  // 개당 가격을 먼저 반올림해 나눠 팔아도 같은 금액을 받게 해요.
+  return Math.max(1,Math.round(m.sell*sellMul()*coinMul()));
+}
+function sellShopItem(k,n){
+  const price=shopSellPrice(k);
+  if(!price||!Number.isSafeInteger(n)||n<=0||inv(k)<n)return false;
+  const got=price*n;
+  if(!Number.isSafeInteger(got))return false;
+  addInv(k,-n);S.coins+=got;
+  sCoin();toast('🪙 +'+got);updateHUD();saveGame();openShop();
+  return true;
+}
 function openShop(){
   let html='<div class="tabbtns"><button class="tabb'+(shopTab==='buy'?' on':'')+'" id="tbuy">사기 🛒</button>'
     +'<button class="tabb'+(shopTab==='sell'?' on':'')+'" id="tsell">팔기 🪙</button></div>';
@@ -2500,7 +2673,7 @@ function openShop(){
     for(const k of sellables){
       const m=META[k];
       html+='<div class="card rowline"><div style="font-size:24px">'+m.i+'</div>'
-        +'<div class="grow"><div>'+m.n+' <span class="small">×'+S.inv[k]+'</span></div><div class="small">개당 🪙 '+m.sell+'</div></div>'
+        +'<div class="grow"><div>'+m.n+' <span class="small">×'+S.inv[k]+'</span></div><div class="small">개당 🪙 '+shopSellPrice(k)+'</div></div>'
         +'<button class="pillbtn mint" data-sell1="'+k+'">1개</button>'
         +'<button class="pillbtn" data-sellall="'+k+'">전부</button></div>';
     }
@@ -2516,12 +2689,11 @@ function openShop(){
     S.coins-=m.buy;addInv(k,1);sCoin();updateHUD();openShop();
   }));
   mbody.querySelectorAll('[data-sell1]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const k=b.dataset.sell1;if(inv(k)<=0)return;
-    addInv(k,-1);S.coins+=META[k].sell;sCoin();updateHUD();openShop();
+    sellShopItem(b.dataset.sell1,1);
   }));
   mbody.querySelectorAll('[data-sellall]').forEach(b=>b.addEventListener('pointerdown',()=>{
-    const k=b.dataset.sellall,n=inv(k);if(n<=0)return;
-    addInv(k,-n);const got=Math.round(META[k].sell*n*sellMul()*coinMul());S.coins+=got;sCoin();toast('🪙 +'+got);updateHUD();openShop();
+    const k=b.dataset.sellall;
+    sellShopItem(k,inv(k));
   }));
 }
 
@@ -3630,8 +3802,8 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
       g.fillText('✦',-16,-52);g.fillText('✦',16,-44);g.globalAlpha=1;
     }
   }
-  // 뒷머리 (헤어스타일별) — 왕자는 짧은 머리
-  const hs=boy?'__short':(o.hairstyle||'long');
+  // 성별과 관계없이 옷장에서 선택한 헤어스타일을 그려요.
+  const hs=HAIRSTYLES[o.hairstyle]?o.hairstyle:(boy?'short':'long');
   g.fillStyle=hairC;
   g.beginPath();g.ellipse(0,-67,10.2,9.6,0,0,7);g.fill();
   if(hs==='long'){
@@ -3756,9 +3928,9 @@ function drawPrincess(g,x,y,s,walkT,moving,o){
   g.fillStyle=skin;g.fillRect(-1.8,-62,3.6,6.5);
   // 얼굴
   g.fillStyle=skin;g.beginPath();g.arc(0,-70,8.6,0,7);g.fill();
-  // 앞머리
+  // 앞머리도 선택한 헤어스타일에 맞춰요.
   g.fillStyle=hairC;
-  if(boy){
+  if(hs==='short'){
     g.beginPath();g.arc(0,-71,9.2,Math.PI*1.02,Math.PI*1.98);g.fill();
     // 옆으로 넘긴 짧은 앞머리
     g.beginPath();g.moveTo(-8.6,-72);g.quadraticCurveTo(-2,-80,7,-74.5);
@@ -5105,7 +5277,7 @@ function render(){
     drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.92,player.walkT,player.moving,S.outfit);
     sparks.forEach(sp2=>{
       ctx.globalAlpha=Math.max(sp2.life,0);
-      ctx.font=sefont(p2.s);ctx.textAlign='center';
+      ctx.font=efont(sp2.s);ctx.textAlign='center';
       ctx.fillText(sp2.em,sp2.x-cam.x,sp2.y-cam.y);
       ctx.globalAlpha=1;
     });
@@ -5216,7 +5388,10 @@ $('pickBoy').addEventListener('pointerdown',()=>{pendingSex='boy';sTap();updateI
   setInterval(saveGame,15000);
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden)saveGame();
-    else if(bgmWanted&&musicOn){audio();startMusic();}
+    else{
+      ensureDaily();
+      if(bgmWanted&&musicOn){audio();startMusic();}
+    }
   });
 })();
 
@@ -5226,7 +5401,12 @@ function applyName(){
   updateHUD();
 }
 $('startbtn').addEventListener('pointerdown',()=>{
-  audio(); sYes(); if(S)S.sex=pendingSex; applyName();
+  audio(); sYes();
+  if(S){
+    S.sex=pendingSex;
+    if(!S.tutorial)S.outfit.hairstyle=isBoy()?'short':'long';
+  }
+  applyName();
   bgmWanted=S&&S.music!==false;
   if(bgmWanted)startMusic();
   $('intro').style.display='none';
@@ -5238,7 +5418,8 @@ let newArm=false;
 $('newbtn').addEventListener('pointerdown',()=>{
   audio();
   if(!newArm){newArm=true;$('newbtn').textContent='정말요? 이전 기록이 사라져요! 한 번 더 탭';sNo();return;}
-  S=freshState(); S.sex=pendingSex; forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
+  S=freshState(); S.sex=pendingSex; S.outfit.hairstyle=isBoy()?'short':'long';
+  forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
   updateHUD(); $('intro').style.display='none';
   S.tutorial=true; tutoStep=1;
   toast('🕹️ 화면 왼쪽을 문질러 움직여요!');
