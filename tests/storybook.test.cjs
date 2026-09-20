@@ -104,3 +104,13 @@ test('wardrobe keeps sky reward locked and selecting owned sky saves immediately
 test('unsupported clothing keeps classic customization and supported clothing respects classic preference',async()=>{
  const t=await setup();t.run("setOutfit('dress','purple')");assert.equal(t.run('S.avatarStyle'),'classic');t.run("setOutfit('dress','sky')");assert.equal(t.run('S.avatarStyle'),'classic');t.run('toggleStorybookStyle()');assert.equal(t.run('S.avatarStyle'),'storybook');assert.equal(t.run('S.outfit.dress'),'sky');
 });
+test('storybook wardrobe only offers supported gear until player explicitly switches style',async()=>{
+ const t=await setup();t.run('openCloset()');let html=t.elements.get('mbody').innerHTML;
+ assert.match(html,/costumeGrid/);assert.match(html,/lumi-princess-sky-walk.webp/);assert.doesNotMatch(html,/data-kind="hair"/);assert.doesNotMatch(html,/data-k="fairy"/);
+ t.run('toggleStorybookStyle()');html=t.elements.get('mbody').innerHTML;assert.match(html,/data-kind="hair"/);assert.match(html,/data-k="fairy"/);assert.equal(t.run('uiOpen'),1);
+ t.run("S.sex='boy';toggleStorybookStyle()");html=t.elements.get('mbody').innerHTML;assert.match(html,/lumi-prince-sky-walk.webp/);assert.doesNotMatch(html,/data-kind="hair"/);assert.equal(t.run('uiOpen'),1);
+});
+test('a failed storybook asset does not trap the player away from classic wardrobe',async()=>{
+ const mock=adapter(),t=await setup(mock);t.run('openCloset()');mock.images[0].onerror();assert.equal(t.elements.get('storybookClassicFallback').style.display,'inline-block');
+ t.events['storybookClassicFallback:click']();assert.equal(t.run('S.avatarStyle'),'classic');assert.match(t.elements.get('mbody').innerHTML,/data-kind="hair"/);
+});
