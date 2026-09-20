@@ -191,7 +191,7 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
 </style>
 </head>
 <body>
-<canvas id="cv"></canvas>
+<canvas id="cv" tabindex="0" aria-label="게임 화면 · 방향키 또는 WASD로 이동"></canvas>
 
 <div id="hud">
   <div id="portrait">👸</div>
@@ -1683,11 +1683,26 @@ const jz=$('joyzone'),jb=$('joybase'),jt=$('joythumb');
 let uiOpen=0; // 모달/대화 열림 수 (이동 잠금)
 const heldKeys=new Set();
 function isTypingTarget(target){
-  return !!(target&&(target.isContentEditable||
-    (target.closest&&target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'))));
+  const editor=target&&(target.isContentEditable?target:
+    target.closest&&target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
+  return !!editor&&(!editor.getClientRects||editor.getClientRects().length>0);
 }
 function gameInputAllowed(){
   return !!S&&$('intro').style.display==='none'&&uiOpen===0&&fadeDir===0&&!document.hidden;
+}
+function focusGame(){
+  if(gameInputAllowed()&&cv.focus)cv.focus({preventScroll:true});
+}
+cv.addEventListener('pointerdown',focusGame);
+function gameKey(e){
+  const codes=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'];
+  if(codes.includes(e.code))return e.code;
+  const keys={ArrowUp:'ArrowUp',Up:'ArrowUp',ArrowDown:'ArrowDown',Down:'ArrowDown',ArrowLeft:'ArrowLeft',Left:'ArrowLeft',ArrowRight:'ArrowRight',Right:'ArrowRight',w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD','ㅈ':'KeyW','ㅉ':'KeyW','ㅁ':'KeyA','ㄴ':'KeyS','ㅇ':'KeyD',' ':'Space',Spacebar:'Space'};
+  const key=typeof e.key==='string'?e.key:'';
+  if(keys[key]||keys[key.toLowerCase()])return keys[key]||keys[key.toLowerCase()];
+  // Older external-keyboard events may omit both code and key.
+  if(!key||key==='Unidentified')return {37:'ArrowLeft',38:'ArrowUp',39:'ArrowRight',40:'ArrowDown',87:'KeyW',65:'KeyA',83:'KeyS',68:'KeyD',32:'Space'}[e.keyCode]||'';
+  return '';
 }
 function resetInput(){
   heldKeys.clear();joyEnd();
@@ -1703,25 +1718,27 @@ function movementInput(){
   };
 }
 window.addEventListener('keydown',e=>{
-  if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey||isTypingTarget(e.target)){
+  if(e.ctrlKey||e.metaKey||e.altKey||isTypingTarget(e.target)||isTypingTarget(document.activeElement)){
     resetInput();return;
   }
-  const move=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code);
-  if(!move&&e.code!=='Space')return;
-  if(!gameInputAllowed())return;
-  // 버튼의 스페이스바 기본 동작과 게임 행동이 동시에 실행되지 않게 해요.
-  if(e.code==='Space'&&e.target&&e.target.closest&&e.target.closest('button, a'))return;
+  const code=gameKey(e),move=code&&code!=='Space';
+  // Composition must keep working in text fields; movement keys outside them are game controls.
+  if(e.isComposing&&!move){resetInput();return;}
+  if(!code||!gameInputAllowed())return;
+  if(code==='Space'&&e.target&&e.target.closest&&e.target.closest('button, a'))return;
   e.preventDefault();
-  if(e.repeat||heldKeys.has(e.code))return;
-  heldKeys.add(e.code);
-  if(e.code==='Space'){audio();findNearest();doAction();}
+  if(move)joyEnd(); // The latest input takes over, including a missed touch release.
+  if(heldKeys.has(code)||(!move&&e.repeat))return;
+  heldKeys.add(code);
+  if(code==='Space'){audio();findNearest();doAction();}
 });
-window.addEventListener('keyup',e=>{heldKeys.delete(e.code);});
+window.addEventListener('keyup',e=>{heldKeys.delete(gameKey(e));});
 document.addEventListener('focusin',e=>{if(isTypingTarget(e.target))resetInput();});
 
 jz.addEventListener('pointerdown',e=>{
   if(!gameInputAllowed())return;
   e.preventDefault(); // 길게 눌러도 선택/메뉴가 뜨지 않게
+  focusGame();
   joy.active=true;joy.id=e.pointerId;joy.bx=e.clientX;joy.by=e.clientY;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='block';
   jb.style.left=(joy.bx-55)+'px';jb.style.top=(joy.by-55)+'px';
@@ -2003,7 +2020,7 @@ function stopFishFrame(){
 function closeFishing(){
   if(!fish.on)return;
   stopFishFrame();fish.on=false;fish.phase='idle';fishEl.style.display='none';
-  uiOpen=Math.max(0,uiOpen-1);resetInput();
+  uiOpen=Math.max(0,uiOpen-1);resetInput();focusGame();
 }
 $('fclose').addEventListener('pointerdown',closeFishing);
 function pickFishHere(){
@@ -2159,7 +2176,7 @@ dEl.addEventListener('pointerdown',()=>{
   if(dlg.idx<dlg.pages.length-1){dlg.idx++;showPage();}
   else if(!dlg.choices)closeDialog();
 });
-function closeDialog(){if(!dlg.open)return;dlg.open=false;dEl.style.display='none';uiOpen--;}
+function closeDialog(){if(!dlg.open)return;dlg.open=false;dEl.style.display='none';uiOpen--;focusGame();}
 
 /* ============ 퀘스트 ============ */
 function qs(id){if(!S.q[id])S.q[id]={s:'none',rep:false};return S.q[id];}
@@ -2395,7 +2412,7 @@ function openModal(title,html){
   sTap();
 }
 function closeModal(){
-  if(mwrap.style.display==='flex'){mwrap.style.display='none';uiOpen--;mbody.innerHTML='';saveGame();}
+  if(mwrap.style.display==='flex'){mwrap.style.display='none';uiOpen--;mbody.innerHTML='';focusGame();saveGame();}
 }
 $('mclose').addEventListener('pointerdown',closeModal);
 mwrap.addEventListener('pointerdown',e=>{if(e.target===mwrap)closeModal();});
@@ -4427,7 +4444,7 @@ function capLoop(){
 }
 function endCapture(){
   cap.on=false;
-  $('capture').style.display='none';uiOpen=Math.max(0,uiOpen-1);
+  $('capture').style.display='none';uiOpen=Math.max(0,uiOpen-1);focusGame();
 }
 function catchPet(){
   const sp=cap.sp, spec=PETSPEC[sp], rr=RARN[spec.rar];
@@ -5551,7 +5568,7 @@ $('startbtn').addEventListener('pointerdown',()=>{
   applyName();
   bgmWanted=S&&S.music!==false;
   if(bgmWanted)startMusic();
-  $('intro').style.display='none';
+  $('intro').style.display='none';focusGame();
   if(S&&!S.tutorial){S.tutorial=true;tutoStep=1;toast('🕹️ 화면 왼쪽을 문질러 움직여요!');}
   else toast('🌸 다시 온 걸 환영해요, '+pname()+' '+hon()+'님!');
   saveGame();
@@ -5562,7 +5579,7 @@ $('newbtn').addEventListener('pointerdown',()=>{
   if(!newArm){newArm=true;$('newbtn').textContent='정말요? 이전 기록이 사라져요! 한 번 더 탭';sNo();return;}
   S=freshState(); S.sex=pendingSex; S.outfit.hairstyle=isBoy()?'short':'long';
   forageUntil=FORAGE_DEF.map(()=>0); musicOn=true; world='out'; applyName();
-  updateHUD(); $('intro').style.display='none';
+  updateHUD(); $('intro').style.display='none';focusGame();
   S.tutorial=true; tutoStep=1;
   toast('🕹️ 화면 왼쪽을 문질러 움직여요!');
   sYes(); bgmWanted=true; startMusic(); saveGame();
