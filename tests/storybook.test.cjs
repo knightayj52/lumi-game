@@ -80,3 +80,27 @@ test('wing renderer orders layers for front, side and rear and mirrors left with
  for(const [dx,dy,row]of [[0,1,0],[1,0,1],[-1,0,1],[0,-1,2]]){calls.length=0;scales.length=0;t.env.face={dx,dy};t.run('drawStorybookCharacter(g,0,0,1,.2,true,face)');assert.equal(calls.length,2);assert.equal(calls[row===2?1:0][0],wing);assert.equal(calls[row===2?1:0][1],row*256);assert.equal(scales.some(a=>a[0]===-1&&a[1]===1),dx===-1);}
  calls.length=0;t.run("setOutfit('wings',false);drawStorybookCharacter(g,0,0,1,0,false)");assert.equal(calls.length,1);assert.equal(calls[0][0],mock.images[0]);
 });
+test('sky costume selects and persists a gender-specific atlas while keeping wings and stats',async()=>{
+ for(const sex of ['girl','boy']){const mock=adapter(),t=await setup(mock);t.env.sex=sex;t.run("S.sex=sex;S.owned.dresses.push('sky');S.outfit.wings='butterfly';S.owned.wings.push('butterfly')");const stats=t.run('JSON.stringify(S.stats)');
+ t.run("setOutfit('dress','sky')");await t.run('storageWriteQueue');assert.equal(t.run('S.avatarStyle'),'storybook');assert.equal(t.run('S.outfit.wings'),'butterfly');assert.equal(mock.images[2].src,sex==='boy'?'assets/lumi-prince-sky-walk.webp':'assets/lumi-princess-sky-walk.webp');assert.equal(t.run('JSON.stringify(S.stats)'),stats);
+ const u=await setup({saved:t.raw});assert.equal(u.run('S.outfit.dress'),'sky');assert.equal(u.run('S.avatarStyle'),'storybook');assert.equal(u.run('S.outfit.wings'),'butterfly');
+ }
+});
+test('late costume loading never overwrites another costume or gender selection',async()=>{
+ const mock=adapter(),t=await setup(mock);mock.images[0].onload();mock.images[1].onload();t.run("setOutfit('dress','sky')");const girlSky=mock.images[2];t.run("S.sex='boy';ensureStorybookArt('boy',false,'sky')");const boySky=mock.images[3];
+ const calls=[];t.env.g={save(){},restore(){},translate(){},beginPath(){},ellipse(){},fill(){},scale(){},drawImage(img){calls.push(img)}};
+ girlSky.onload();assert.equal(t.run('drawStorybookCharacter(g,0,0,1,0,false)'),false);boySky.onload();t.run('drawStorybookCharacter(g,0,0,1,0,false)');assert.equal(calls.pop(),boySky);
+ t.run("setOutfit('dress','pink');drawStorybookCharacter(g,0,0,1,0,false)");assert.equal(calls.pop(),mock.images[1]);t.run("S.sex='girl';setOutfit('dress','sky');drawStorybookCharacter(g,0,0,1,0,false)");assert.equal(calls.pop(),girlSky);assert.equal(mock.images.length,4);
+});
+test('failed sky asset retries the selected costume without loading a default costume instead',async()=>{
+ const mock=adapter(),t=await setup(mock);mock.images[0].onload();t.run("setOutfit('dress','sky')");mock.images[2].onerror();t.run('toggleStorybookStyle()');assert.equal(mock.images[3].src,'assets/lumi-princess-sky-walk.webp');assert.equal(t.run('S.avatarStyle'),'storybook');assert.equal(t.run('S.outfit.dress'),'sky');
+ t.run("setOutfit('dress','pink')");mock.images[3].onload();assert.equal(t.run('S.outfit.dress'),'pink');assert.equal(t.run('storybookSkyArt.girl.ready'),true);
+});
+test('wardrobe keeps sky reward locked and selecting owned sky saves immediately',async()=>{
+ const t=await setup();t.run('beep=()=>{}');let select;const chip={dataset:{kind:'dress',k:'sky'},addEventListener(name,fn){select=fn}};
+ t.elements.get('mbody').querySelectorAll=()=>[chip];t.run('openCloset()');assert.match(t.elements.get('mbody').innerHTML,/하늘 의상/);const before=t.run('JSON.stringify(S)');select();assert.equal(t.run('JSON.stringify(S)'),before);
+ t.run("grantItem('dress_sky')");select();await t.run('storageWriteQueue');assert.equal(JSON.parse(t.raw).outfit.dress,'sky');assert.equal(JSON.parse(t.raw).avatarStyle,'storybook');
+});
+test('unsupported clothing keeps classic customization and supported clothing respects classic preference',async()=>{
+ const t=await setup();t.run("setOutfit('dress','purple')");assert.equal(t.run('S.avatarStyle'),'classic');t.run("setOutfit('dress','sky')");assert.equal(t.run('S.avatarStyle'),'classic');t.run('toggleStorybookStyle()');assert.equal(t.run('S.avatarStyle'),'storybook');assert.equal(t.run('S.outfit.dress'),'sky');
+});

@@ -2622,24 +2622,27 @@ function chipRow(kind,defs,ownedArr,cur,canNone){
     const charmTag=d.charm?' <span class="small">💖+'+d.charm+'</span>':'';
     const lockTag=has?'':(d.buy?' <span class="small" style="color:#c98a2a">🪙'+d.buy+'</span>':' 🔒');
     html+='<button class="chip'+(on?' on':'')+(has?'':' lock')+'" data-kind="'+kind+'" data-k="'+k+'">'
-      +d.n+charmTag+lockTag+'</button>';
+      +(kind==='dress'&&S.avatarStyle==='storybook'&&['pink','sky'].includes(k)?(k==='pink'?'기본 의상':'하늘 의상')+' <span class="small">🎨 새 그림</span>':d.n)+charmTag+lockTag+'</button>';
   }
   return '<div style="margin-bottom:4px">'+html+'</div>';
 }
 function setOutfit(kind,k){
-  if(kind!=='wings'||(k&&k!=='butterfly'))S.avatarStyle='classic';
+  const painted=(kind==='wings'&&(!k||k==='butterfly'))||(kind==='dress'&&['pink','sky'].includes(k));
+  if(!painted)S.avatarStyle='classic';
   if(kind==='wings'){S.outfit.wings=k;if(k==='butterfly'&&S.avatarStyle==='storybook')ensureStorybookWings();}
   else if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
   else if(kind==='hairstyle')S.outfit.hairstyle=k; else if(kind==='acc')S.outfit.acc=k;
   else if(kind==='shoes')S.outfit.shoes=k;
   else if(kind==='wand')S.outfit.wand=k;
   else if(kind==='gloves')S.outfit.gloves=k;
+  if(kind==='dress'&&S.avatarStyle==='storybook')ensureStorybookArt(isBoy()?'boy':'girl',false,k);
+  saveGame();
 }
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
     +'<div class="small">꾸미기 매력 보너스: 💖 +<span id="wch">'+gearCharm()+'</span></div></div>';
-  html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+(S.avatarStyle==='storybook')+'">동화풍 기본 의상</button><div class="small" style="margin-top:8px">새 그림은 공주·왕자의 기본 의상이에요.<br>나비 날개는 새 그림에서도 착용하고 벗을 수 있어요.<br>다른 의상·머리·장비를 고르면 기존 자유 꾸미기로 바뀌어요.<br>새 그림에서는 나비 날개 외의 선택 장비 모양이 표시되지 않지만 능력치는 유지돼요.</div></div>';
-  html+='<div class="small" style="margin:8px 4px 4px">👗 드레스</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
+  html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+(S.avatarStyle==='storybook')+'">동화풍 기본 의상</button><div class="small" style="margin-top:8px">새 그림에서 기본·하늘 의상을 바꿔 입고 나비 날개를 달 수 있어요.<br>하늘 의상은 곰 몽몽의 부탁을 완료하면 받아요.<br>다른 의상·머리·장비를 고르면 기존 자유 꾸미기로 바뀌어요.<br>머리·신발·장식은 새 그림의 기본 모습으로 표시되며, 선택 장비의 능력치는 유지돼요.</div></div>';
+  html+='<div class="small" style="margin:8px 4px 4px">👗 의상</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
   html+='<div class="small" style="margin:8px 4px 4px">👠 구두</div>'+chipRow('shoes',SHOES,S.owned.shoes,S.outfit.shoes);
@@ -3834,6 +3837,8 @@ function drawNpcs(){
 /* ---- 공주님 ---- */
 // 성별별 이미지 캐시. 저장되는 표시 방식과 비동기 로딩 상태를 분리해요.
 const storybookArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
+const storybookSkyArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
+function storybookCostumeArt(sex,dress){return (dress==='sky'?storybookSkyArt:storybookArt)[sex];}
 // Optional painted equipment; loaded only when equipped, shared by both genders.
 const storybookWings={ready:false,loading:false,failed:false,image:null};
 function updateStorybookWingStatus(){
@@ -3862,28 +3867,28 @@ function drawStorybookWings(g,p,unit,walkT,moving){
 function updateStorybookButton(){
   updateStorybookWingStatus();
   const b=$('storybookToggle');if(!b||!S)return;
-  const art=storybookArt[isBoy()?'boy':'girl'];
-  b.textContent=S.avatarStyle==='storybook'?(art.loading?'새 그림을 불러오는 중…':art.failed?'그림 다시 불러오기':'기존 자유 꾸미기로 전환'):'동화풍 기본 의상으로 전환';
+  const art=storybookCostumeArt(isBoy()?'boy':'girl',S.outfit.dress);
+  b.textContent=S.avatarStyle==='storybook'?(art.loading?'새 그림을 불러오는 중…':art.failed?'그림 다시 불러오기':'기존 자유 꾸미기로 전환'):'동화풍 그림으로 전환';
   b.setAttribute&&b.setAttribute('aria-pressed',String(S.avatarStyle==='storybook'));
 }
-function ensureStorybookArt(sex,retry=false){
-  const art=storybookArt[sex];
+function ensureStorybookArt(sex,retry=false,dress='pink'){
+  const art=storybookCostumeArt(sex,dress);
   if(!art||art.ready||art.loading||(art.failed&&!retry)||typeof Image==='undefined')return;
   const img=new Image();art.image=img;art.loading=true;art.failed=false;
   const finished=()=>{
-    const pick=$(sex==='boy'?'pickBoy':'pickGirl');if(pick)pick.classList.toggle('artready',art.ready);
+    const pick=$(sex==='boy'?'pickBoy':'pickGirl');if(pick&&dress!=='sky')pick.classList.toggle('artready',art.ready);
     updateStorybookButton();drawCloset();
   };
   img.onerror=()=>{art.loading=false;art.ready=false;art.failed=true;finished();};
   img.onload=()=>{if(img.naturalWidth!==576||img.naturalHeight!==540){img.onerror();return;}
     art.ready=true;art.loading=false;art.failed=false;finished();};
-  img.src=sex==='boy'?'assets/lumi-prince-walk.webp':'assets/lumi-storybook-walk.webp';
+  img.src=dress==='sky'?(sex==='boy'?'assets/lumi-prince-sky-walk.webp':'assets/lumi-princess-sky-walk.webp'):(sex==='boy'?'assets/lumi-prince-walk.webp':'assets/lumi-storybook-walk.webp');
 }
 function toggleStorybookStyle(){
-  const sex=isBoy()?'boy':'girl',art=storybookArt[sex];
-  if(S.avatarStyle==='storybook'&&art.failed){ensureStorybookArt(sex,true);updateStorybookButton();return;}
+  const sex=isBoy()?'boy':'girl',art=storybookCostumeArt(sex,S.outfit.dress);
+  if(S.avatarStyle==='storybook'&&art.failed){ensureStorybookArt(sex,true,S.outfit.dress);updateStorybookButton();return;}
   S.avatarStyle=S.avatarStyle==='storybook'?'classic':'storybook';
-  if(S.avatarStyle==='storybook')ensureStorybookArt(sex,true);
+  if(S.avatarStyle==='storybook')ensureStorybookArt(sex,true,S.outfit.dress);
   updateStorybookButton();drawCloset();saveGame();
 }
 function storybookPose(walkT,moving,facing){
@@ -3893,8 +3898,8 @@ function storybookPose(walkT,moving,facing){
 }
 function drawStorybookCharacter(g,x,y,s,walkT,moving,facing){
   if(!S||S.avatarStyle!=='storybook')return false;
-  const sex=isBoy()?'boy':'girl',art=storybookArt[sex];
-  ensureStorybookArt(sex);
+  const sex=isBoy()?'boy':'girl',art=storybookCostumeArt(sex,S.outfit.dress);
+  ensureStorybookArt(sex,false,S.outfit.dress);
   if(!art.ready)return false;
   const wings=S.outfit.wings==='butterfly';
   if(wings){ensureStorybookWings();if(!storybookWings.ready)return false;}

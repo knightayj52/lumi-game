@@ -18,8 +18,8 @@ Prompt summary: match the approved painterly princess quality, preserve identity
 - New games use `avatarStyle: 'storybook'` for both genders. Selection buttons also show the corresponding image.
 - `avatarStyle` is saved and validated (`storybook` or `classic`).
 - Old saves without a style use storybook only when the outfit is the unmodified starting outfit. Customized old saves keep the classic renderer and all equipped items.
-- The wardrobe switches between storybook basic costume and classic individual customization. Changing an individual outfit item selects classic, except butterfly wings and removing wings, which retain the current style. Ownership, stats and items are retained.
-- The painted image is a fixed costume. Clothing and hair are not yet separated into layers. Butterfly wings are a separate painted equipment layer; other equipped item visuals are shown in classic mode. The wardrobe explains this distinction.
+- The wardrobe switches between storybook basic costume and classic individual customization. Changing an individual outfit item selects classic, except basic/sky costumes, butterfly wings and removing wings, which retain the current style. Ownership, stats and items are retained.
+- Each painted character atlas is a complete costume. Basic and sky outfits now have dedicated atlases. Clothing and hair are not yet separated into layers. Butterfly wings are a separate painted equipment layer; other equipped item visuals are shown in classic mode. The wardrobe explains this distinction.
 - Each gender has its own image cache and load/error status. Late loading of the other gender cannot change the chosen character. Failures retain a drawable classic fallback and allow an explicit retry.
 - Missing image support does not stop gameplay. No new external image service is requested by the game.
 
@@ -33,4 +33,14 @@ Prompt summary: match the approved painterly princess quality, preserve identity
 
 Produced with the built-in image tool using the princess as a style reference. Prompt: isolated wearable butterfly wing pair, pearly ivory/blush pink with delicate golden veins, three front/right/rear views, painted storybook materials, transparent background, no character/text/shadows. Mechanical alpha-bound cropping and proportional resizing pack the generated parts into the atlas; no recoloring or procedural replacement artwork.
 
-Existing level-5 ownership, prices, charm and save fields are retained. Selecting/removing wings saves immediately. The asset loads lazily once for both genders. Missing/invalid images use the complete classic character with its equipped wings, retain the saved style, and expose an explicit retry in the wardrobe. Successful late loading cannot re-equip removed gear. Other wings still select classic mode. Clothing, hair and other equipment layers remain future work.
+Existing level-5 ownership, prices, charm and save fields are retained. Selecting/removing wings saves immediately. The asset loads lazily once for both genders. Missing/invalid images use the complete classic character with its equipped wings, retain the saved style, and expose an explicit retry in the wardrobe. Successful late loading cannot re-equip removed gear. Other wings still select classic mode. Further outfits, independent hair and other equipment layers remain future work.
+
+## Sky costume variants
+
+`lumi-princess-sky-walk.webp` and `lumi-prince-sky-walk.webp` use the same 576 × 540 / 144 × 180 cell format and foot baseline as the basic atlases. These are complete painted costume variants rather than separate clothing cutouts. The existing `dress: 'sky'` selects the matching gender atlas; `pink` selects the original basic character. Unsupported dresses retain the existing classic selection behavior. A player who explicitly selected classic keeps that preference when choosing a supported costume and can switch back using the wardrobe button.
+
+Both images were created with the built-in image tool as edits of their corresponding basic atlas. Prompt: change only the dress/jacket to light sky blue silk with ivory and warm gold details, preserve character identity, hair, crown, ribbons, shoes/trousers, 4 × 3 direction/pose order, and actual transparency. Cropping and proportional resizing standardize each frame to 160 px painted height. As generated variants, fine details can vary slightly; these are not pixel-identical palette swaps.
+
+Sky clothing still comes from the existing bear quest, costs no new currency, and retains its +3 charm. No ownership grants or game-balance changes were added. Wardrobe entries mark supported outfits. Outfit selection now saves immediately. Costume caches are separate by gender and outfit; sky loads only when selected/rendered, retries target the selected variant, and late responses never modify player state or the basic start-screen portraits. Butterfly wings work on either costume.
+
+Automated tests additionally cover reward locking, actual wardrobe selection, immediate persistence, retained wings and stats, gender/costume load races, selected-variant retries and classic preference. Node Canvas preview compares basic and sky outfits, walking directions, and sky plus wings. Real browser/mobile validation remains pending.
