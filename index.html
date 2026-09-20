@@ -49,6 +49,11 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
 /* ---------- 조작 ---------- */
 .charbtn{flex:1;max-width:120px;padding:10px 4px;border-radius:16px;border:2.5px solid #f0d8e6;background:#fff;font-size:30px;line-height:1.1;cursor:pointer;}
 .charbtn>div{font-size:13px;color:#8a6a80;margin-top:2px;}
+.pickSprite{display:none;width:64px;height:80px;margin:0 auto;background-size:256px 240px;background-position:-64px 0;background-repeat:no-repeat;}
+.pickSprite.girl{background-image:url('assets/lumi-storybook-walk.webp');}
+.pickSprite.boy{background-image:url('assets/lumi-prince-walk.webp');}
+.charbtn.artready .pickSprite{display:block;}
+.charbtn.artready .pickFallback{display:none;}
 .charbtn.on{border-color:#ff7fb0;background:#fff0f6;box-shadow:0 2px 8px rgba(255,140,180,.25);}
 #joyzone{position:fixed;left:0;bottom:0;width:55%;height:55%;z-index:15;}
 #joybase{position:fixed;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.28);
@@ -159,7 +164,7 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
 
 /* ---------- 인트로 ---------- */
 #intro{position:fixed;inset:0;z-index:90;background:linear-gradient(#ffe9f2,#dff3e4);display:flex;align-items:center;justify-content:center;padding:24px;}
-#introcard{max-width:400px;width:100%;background:var(--card);border-radius:28px;border:4px solid #fff;
+#introcard{max-width:400px;width:100%;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);overflow-y:auto;touch-action:pan-y;background:var(--card);border-radius:28px;border:4px solid #fff;
   box-shadow:0 14px 34px rgba(190,120,150,.3);padding:26px 22px;text-align:center;}
 #introcard h1{font-size:24px;color:var(--pink-d);margin:8px 0 4px;}
 #introart{font-size:52px;letter-spacing:4px;}
@@ -252,8 +257,8 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <div class="howrow"><div class="howic">💾</div><div>진행은 자동 저장! 💾 버튼으로 바로 저장도 돼요</div></div>
   <div id="charsel" style="margin:8px 0 4px"><div style="font-size:14px;color:#a06a86;margin-bottom:6px">🎭 캐릭터를 골라요</div>
     <div style="display:flex;gap:8px;justify-content:center">
-      <button id="pickGirl" class="charbtn on">👸<div>공주</div></button>
-      <button id="pickBoy" class="charbtn">🤴<div>왕자</div></button>
+      <button id="pickGirl" class="charbtn on"><span class="pickSprite girl" aria-hidden="true"></span><span class="pickFallback" aria-hidden="true">👸</span><div>공주</div></button>
+      <button id="pickBoy" class="charbtn"><span class="pickSprite boy" aria-hidden="true"></span><span class="pickFallback" aria-hidden="true">🤴</span><div>왕자</div></button>
     </div></div>
   <div id="namewrap"><label for="nameinput">👑 <span id="namelabel">공주님</span>의 이름을 지어 주세요</label>
   <input id="nameinput" maxlength="6" placeholder="예: 루미" autocomplete="off"></div>
@@ -1143,7 +1148,7 @@ const mmBase=document.createElement('canvas');mmBase.width=MAP_W*3;mmBase.height
 /* ============ 상태 ============ */
 let S=null;
 function freshState(){return{
-  v:1, coins:20, xp:0, level:1, sex:'girl',
+  v:1, coins:20, xp:0, level:1, sex:'girl', avatarStyle:'storybook',
   stats:{charm:1,wis:1,kind:1,lead:1},
   inv:{carrotSeed:3,strawSeed:1},
   outfit:{dress:'pink',hair:'brown',hairstyle:'long',acc:'crown',shoes:'pink',wings:false,wand:false,gloves:false},
@@ -1163,6 +1168,12 @@ function freshState(){return{
   achv:{}, titles:[], title:null, gemEver:false,
   daily:null, attLast:null, attStreak:0, attToday:false,
 };}
+// 표시 방식이 없던 저장 기록은 기본 의상만 새 그림으로 전환해요.
+function legacyAvatarStyle(d){
+  const o=d.outfit||{};
+  return o.dress==='pink'&&o.hair==='brown'&&o.acc==='crown'&&(!o.shoes||o.shoes==='pink')
+    &&(!o.hairstyle||o.hairstyle===(d.sex==='boy'?'short':'long'))&&!o.wings&&!o.wand&&!o.gloves?'storybook':'classic';
+}
 function pname(){return (S&&S.name)?S.name:'루미';}
 function isBoy(){return !!(S&&S.sex==='boy');}
 function hon(){return isBoy()?'왕자':'공주';}
@@ -1491,6 +1502,7 @@ function parseSave(txt){
     if(d.level<LEVEL_XP.length&&d.xp>=LEVEL_XP[d.level])return null;
     if(d.name!==undefined&&d.name.length>6)return null;
     if(d.sex!==undefined&&!['boy','girl'].includes(d.sex))return null;
+    if(d.avatarStyle!==undefined&&!['storybook','classic'].includes(d.avatarStyle))return null;
     if(!map(d.stats,(v,k)=>has(STATN,k)&&num(v))||!map(d.inv,(v,k)=>has(META,k)&&integer(v)))return null;
     const gear={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wings:WINGS,wand:WANDS,gloves:GLOVES};
     for(const k of ['dress','hair','acc'])if(!has(gear[k],d.outfit[k]))return null;
@@ -1569,6 +1581,7 @@ async function loadGame(){
 let forageUntil=FORAGE_DEF.map(()=>0);
 function applyLoaded(d,persist=true){
   S=Object.assign(freshState(),d);
+  S.avatarStyle=d.avatarStyle===undefined?legacyAvatarStyle(d):d.avatarStyle;
   S.stats=Object.assign({charm:1,wis:1,kind:1,lead:1},d.stats||{});
   S.plots=PLOT_DEF.map((_,i)=>{
     const p=(d.plots&&d.plots[i])||{state:'empty'};
@@ -2614,6 +2627,7 @@ function chipRow(kind,defs,ownedArr,cur,canNone){
   return '<div style="margin-bottom:4px">'+html+'</div>';
 }
 function setOutfit(kind,k){
+  S.avatarStyle='classic';
   if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
   else if(kind==='hairstyle')S.outfit.hairstyle=k; else if(kind==='acc')S.outfit.acc=k;
   else if(kind==='shoes')S.outfit.shoes=k;
@@ -2623,7 +2637,7 @@ function setOutfit(kind,k){
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
     +'<div class="small">꾸미기 매력 보너스: 💖 +<span id="wch">'+gearCharm()+'</span></div></div>';
-  if(!isBoy())html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+storybookPreview.enabled+'">동화풍 공주 체험하기</button><div class="small" style="margin-top:8px">분홍 드레스·양갈래 머리로 새 그림을 체험해요.<br>체험 중에는 선택한 장비 모양이 표시되지 않아요.<br>장비와 능력치는 유지되며, 의상을 선택하면 체험이 끝나요.</div></div>';
+  html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+(S.avatarStyle==='storybook')+'">동화풍 기본 의상</button><div class="small" style="margin-top:8px">새 그림은 공주·왕자의 기본 의상이에요.<br>아래에서 개별 의상을 고르면 기존 자유 꾸미기로 바뀌어요.<br>동화풍에서는 선택 장비의 모양이 표시되지 않지만 장비·능력치는 유지돼요.</div></div>';
   html+='<div class="small" style="margin:8px 4px 4px">👗 드레스</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
@@ -2642,15 +2656,15 @@ function openCloset(){
   html+='</div><div class="small" style="text-align:center;color:#a98">💎 보석은 광산의 드워프에게서 만들어요 · 보유 💎 '+inv('gem')+'</div>';
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   openModal('👗 옷장',html);
-  if(!isBoy())$('storybookToggle').addEventListener('click',toggleStorybookPreview);
+  $('storybookToggle').addEventListener('click',toggleStorybookStyle);
   updateStorybookButton();drawCloset();
   const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes,wand:S.owned.wands,gloves:S.owned.gloves};
   const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wand:WANDS,gloves:GLOVES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('pointerdown',()=>{
     const kind=b.dataset.kind,k=b.dataset.k;
-    storybookPreview.enabled=false;updateStorybookButton();drawCloset();
+
     if(kind==='wings'){
-      if(k==='none'){S.outfit.wings=false;sPick();openCloset();return;}
+      if(k==='none'){S.avatarStyle='classic';S.outfit.wings=false;sPick();openCloset();return;}
       const wdf=WINGS[k];
       if(!S.owned.wings.includes(k)){
         if(wdf.buy){
@@ -2661,7 +2675,7 @@ function openCloset(){
           addInv('gem',-wdf.gems); S.owned.wings.push(k); sLevel(); confetti(20); toast('💎 '+wdf.n+' 획득!');
         }else{toast('🔒 '+(wdf.how||'특별한 방법으로')+' 얻어요');sNo();return;}
       }
-      S.outfit.wings=k; sPick(); updateHUD(); openCloset(); return;
+      S.avatarStyle='classic';S.outfit.wings=k; sPick(); updateHUD(); openCloset(); return;
     }
     if(k==='__none'){setOutfit(kind,false);sPick();openCloset();return;}
     const owned=OWNED[kind], d=DEFS[kind][k];
@@ -3815,46 +3829,55 @@ function drawNpcs(){
 }
 
 /* ---- 공주님 ---- */
-// 동화풍 기본 의상 체험. 장비/능력치/저장 데이터와 분리된 세션 전용 표시입니다.
-const storybookPreview={enabled:false,ready:false,loading:false,image:null};
+// 성별별 이미지 캐시. 저장되는 표시 방식과 비동기 로딩 상태를 분리해요.
+const storybookArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
 function updateStorybookButton(){
-  const b=$('storybookToggle');if(!b)return;
-  b.textContent=storybookPreview.enabled?(storybookPreview.loading?'그림을 불러오는 중…':'기존 의상으로 돌아가기'):'동화풍 공주 체험하기';
-  b.setAttribute&&b.setAttribute('aria-pressed',String(storybookPreview.enabled));
+  const b=$('storybookToggle');if(!b||!S)return;
+  const art=storybookArt[isBoy()?'boy':'girl'];
+  b.textContent=S.avatarStyle==='storybook'?(art.loading?'새 그림을 불러오는 중…':art.failed?'그림 다시 불러오기':'기존 자유 꾸미기로 전환'):'동화풍 기본 의상으로 전환';
+  b.setAttribute&&b.setAttribute('aria-pressed',String(S.avatarStyle==='storybook'));
 }
-function toggleStorybookPreview(){
-  storybookPreview.enabled=!storybookPreview.enabled;
-  if(storybookPreview.enabled&&!storybookPreview.ready&&!storybookPreview.loading){
-    if(typeof Image==='undefined'){storybookPreview.enabled=false;return;}
-    const img=new Image();storybookPreview.image=img;storybookPreview.loading=true;
-    const failed=()=>{storybookPreview.ready=false;storybookPreview.loading=false;storybookPreview.enabled=false;updateStorybookButton();drawCloset();toast('그림을 불러오지 못했어요. 다시 눌러 주세요.');};
-    img.onload=()=>{
-      if(img.naturalWidth!==576||img.naturalHeight!==540){failed();return;}
-      storybookPreview.ready=true;storybookPreview.loading=false;updateStorybookButton();drawCloset();
-    };
-    img.onerror=failed;
-    img.src='assets/lumi-storybook-walk.webp';
-  }
-  updateStorybookButton();drawCloset();
+function ensureStorybookArt(sex,retry=false){
+  const art=storybookArt[sex];
+  if(!art||art.ready||art.loading||(art.failed&&!retry)||typeof Image==='undefined')return;
+  const img=new Image();art.image=img;art.loading=true;art.failed=false;
+  const finished=()=>{
+    const pick=$(sex==='boy'?'pickBoy':'pickGirl');if(pick)pick.classList.toggle('artready',art.ready);
+    updateStorybookButton();drawCloset();
+  };
+  img.onerror=()=>{art.loading=false;art.ready=false;art.failed=true;finished();};
+  img.onload=()=>{if(img.naturalWidth!==576||img.naturalHeight!==540){img.onerror();return;}
+    art.ready=true;art.loading=false;art.failed=false;finished();};
+  img.src=sex==='boy'?'assets/lumi-prince-walk.webp':'assets/lumi-storybook-walk.webp';
+}
+function toggleStorybookStyle(){
+  const sex=isBoy()?'boy':'girl',art=storybookArt[sex];
+  if(S.avatarStyle==='storybook'&&art.failed){ensureStorybookArt(sex,true);updateStorybookButton();return;}
+  S.avatarStyle=S.avatarStyle==='storybook'?'classic':'storybook';
+  if(S.avatarStyle==='storybook')ensureStorybookArt(sex,true);
+  updateStorybookButton();drawCloset();saveGame();
 }
 function storybookPose(walkT,moving,facing){
   const dx=facing?facing.dx:0,dy=facing?facing.dy:1;
   return {row:Math.abs(dx)>Math.abs(dy)?1:(dy<0?2:0),flip:Math.abs(dx)>Math.abs(dy)&&dx<0,
     frame:moving?Math.floor(Math.max(0,walkT)*8)%4:1};
 }
-function drawStorybookPrincess(g,x,y,s,walkT,moving,facing){
-  if(!storybookPreview.enabled||!storybookPreview.ready||isBoy())return false;
+function drawStorybookCharacter(g,x,y,s,walkT,moving,facing){
+  if(!S||S.avatarStyle!=='storybook')return false;
+  const sex=isBoy()?'boy':'girl',art=storybookArt[sex];
+  ensureStorybookArt(sex);
+  if(!art.ready)return false;
   const p=storybookPose(walkT,moving,facing),unit=.6*s;
   g.save();g.translate(x,y);
   g.fillStyle='rgba(46,70,57,.17)';g.beginPath();g.ellipse(0,2*s,14*s,4*s,0,0,Math.PI*2);g.fill();
   if(p.flip)g.scale(-1,1);
-  g.drawImage(storybookPreview.image,p.frame*144,p.row*180,144,180,-72*unit,-172*unit,144*unit,180*unit);
+  g.drawImage(art.image,p.frame*144,p.row*180,144,180,-72*unit,-172*unit,144*unit,180*unit);
   g.restore();return true;
 }
 
 // 동화풍 3등신 캐릭터. 발 위치와 기존 의상 데이터는 그대로 사용해요.
 function drawPrincess(g,x,y,s,walkT,moving,o,facing){
-  if(drawStorybookPrincess(g,x,y,s,walkT,moving,facing))return;
+  if(drawStorybookCharacter(g,x,y,s,walkT,moving,facing))return;
   g.save();g.translate(x,y);g.scale(s,s);
   const sw=moving?Math.sin(walkT*10):0,bob=moving?Math.abs(sw)*1.6:Math.sin(T*2)*.35;
   const boy=isBoy(),hair=HAIRS[o.hair].c,cloth=DRESSES[o.dress].c||'#b8a0e4';
@@ -5320,7 +5343,7 @@ function loop(){
 
 /* ============ 시작 ============ */
 for(const id in NPCS){NPCS[id].px=NPCS[id].tx*TILE+24;NPCS[id].py=NPCS[id].ty*TILE+30;}
-document.addEventListener('touchmove',e=>{if(!(e.target.closest&&e.target.closest('#mbody')))e.preventDefault();},{passive:false});
+document.addEventListener('touchmove',e=>{if(!(e.target.closest&&e.target.closest('#mbody, #introcard')))e.preventDefault();},{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('pointerdown',()=>{if(bgmWanted&&musicOn){audio();startMusic();}},true);
 
@@ -5337,6 +5360,7 @@ $('pickBoy').addEventListener('pointerdown',()=>{pendingSex='boy';sTap();updateI
   const saved=await loadGame();
   if(saved)applyLoaded(saved); else S=freshState();
   pendingSex=(S&&S.sex==='boy')?'boy':'girl'; updateIntroChar();
+  ensureStorybookArt('girl');ensureStorybookArt('boy');
   updateHUD();
   if(saved){$('startbtn').textContent='이어서 모험하기 ▶';$('newbtn').style.display='block';}
   $('nameinput').value=pname();
