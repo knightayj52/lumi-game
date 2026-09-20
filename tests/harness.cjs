@@ -22,6 +22,7 @@ async function setup(options = {}) {
       if (key === 'createLinearGradient' || key === 'createRadialGradient') {
         return () => ({ addColorStop: noop });
       }
+      if (key === 'drawImage' && options.drawImage) return options.drawImage;
       if (key === 'measureText') return () => ({ width: 10 });
       return noop;
     },

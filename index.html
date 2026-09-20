@@ -945,6 +945,7 @@ const PETSPEC={
 /* ---- 스프라이트 그리기 엔진 ---- */
 function _rc(g,x,y,w,h,r){if(g.roundRect){g.beginPath();g.roundRect(x,y,w,h,r);}else{g.beginPath();g.rect(x,y,w,h);}}
 function drawCreature(g,d,cx,cy,size){
+  if(drawPaintedCreature(g,d,cx,cy,size))return;
   const s=size/34, dark=shade(d.body,-22), lite=d.belly||shade(d.body,18);
   g.save(); g.translate(cx,cy); g.scale(s,s);
   g.lineJoin='round'; g.textAlign='center';
@@ -1022,7 +1023,8 @@ function spriteURL(sp,size){
   drawCreature(g,PETSPEC[sp],size/2,size/2+size*0.06,size*0.9);
   const u=cv.toDataURL();_spCache[key]=u;return u;
 }
-function spriteImg(sp,size){return '<img src="'+spriteURL(sp,size)+'" width="'+size+'" height="'+size+'" style="vertical-align:middle">';}
+function spriteImg(sp,size){const i=Object.keys(PETSPEC).indexOf(sp);return '<span role="img" aria-label="'+PETSPEC[sp].n+'" style="display:inline-block;vertical-align:middle;width:'+size+'px;height:'+size+'px;background-image:url(assets/storybook-pets.webp);background-size:'+(size*4)+'px '+(size*15)+'px;background-position:-'+(i%4*size)+'px -'+(Math.floor(i/4)*size)+'px"></span>';}
+function furnitureImg(k,size=42){const i=Object.keys(FURN).indexOf(k);return '<span aria-hidden="true" style="display:inline-block;vertical-align:middle;width:'+size+'px;height:'+size+'px;background-image:url(assets/storybook-furniture.webp);background-size:'+(size*4)+'px '+(size*5)+'px;background-position:-'+(i%4*size)+'px -'+(Math.floor(i/4)*size)+'px"></span>';}
 // 캔버스에 직접(맵/동행)
 function drawSpriteAt(sp,wx,wy,size){
   const x=wx-cam.x,y=wy-cam.y;
@@ -2620,6 +2622,15 @@ function openQuests(){
 $('btnQuest').addEventListener('pointerdown',()=>{audio();openQuests();});
 
 /* ============ 옷장 ============ */
+function wardrobeWingIcon(k){if(S.avatarStyle!=='storybook')return '';const i=Object.keys(WINGS).indexOf(k);return '<span aria-hidden="true" style="display:inline-block;vertical-align:middle;width:48px;height:36px;background-image:url(assets/modular-wings.webp);background-size:144px 396px;background-position:0 -'+i*36+'px"></span>';}
+function wardrobeIcon(kind,k){
+ if(S.avatarStyle!=='storybook')return '';
+ const defs={dress:DRESSES,hair:HAIRS,shoes:SHOES};
+ if(defs[kind])return '<span aria-hidden="true" style="display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:5px;border:1px solid #bc9d8b;background:'+(defs[kind][k].c||'linear-gradient(90deg,#ff9ecb,#ffd76e,#8fd3ff)')+'"></span>';
+ const i=kind==='acc'?Object.keys(ACCS).indexOf(k):kind==='wand'?26:kind==='gloves'?27:-1;
+ if(i<0)return '';
+ return '<span aria-hidden="true" style="display:inline-block;vertical-align:middle;width:40px;height:40px;background-image:url(assets/modular-accessories.webp);background-size:160px 280px;background-position:-'+(i%4*40)+'px -'+(Math.floor(i/4)*40)+'px"></span>';
+}
 function chipRow(kind,defs,ownedArr,cur,canNone){
   let html='';
   if(canNone)html+='<button class="chip'+(!cur?' on':'')+'" data-kind="'+kind+'" data-k="__none">없음</button>';
@@ -2628,71 +2639,51 @@ function chipRow(kind,defs,ownedArr,cur,canNone){
     const charmTag=d.charm?' <span class="small">💖+'+d.charm+'</span>':'';
     const lockTag=has?'':(d.buy?' <span class="small" style="color:#c98a2a">🪙'+d.buy+'</span>':' 🔒');
     html+='<button class="chip'+(on?' on':'')+(has?'':' lock')+'" data-kind="'+kind+'" data-k="'+k+'">'
-      +(kind==='dress'&&S.avatarStyle==='storybook'&&['pink','sky'].includes(k)?(k==='pink'?'기본 의상':'하늘 의상')+' <span class="small">🎨 새 그림</span>':d.n)+charmTag+lockTag+'</button>';
+      +wardrobeIcon(kind,k)+d.n+charmTag+lockTag+'</button>';
   }
   return '<div style="margin-bottom:4px">'+html+'</div>';
 }
 function setOutfit(kind,k){
-  const painted=(kind==='wings'&&(!k||k==='butterfly'))||(kind==='dress'&&['pink','sky'].includes(k));
-  if(!painted)S.avatarStyle='classic';
-  if(kind==='wings'){S.outfit.wings=k;if(k==='butterfly'&&S.avatarStyle==='storybook')ensureStorybookWings();}
+
+  if(kind==='wings'){S.outfit.wings=k;}
   else if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
   else if(kind==='hairstyle')S.outfit.hairstyle=k; else if(kind==='acc')S.outfit.acc=k;
   else if(kind==='shoes')S.outfit.shoes=k;
   else if(kind==='wand')S.outfit.wand=k;
   else if(kind==='gloves')S.outfit.gloves=k;
-  if(kind==='dress'&&S.avatarStyle==='storybook')ensureStorybookArt(isBoy()?'boy':'girl',false,k);
+
   saveGame();
-}
-function storybookCostumeCards(){
-  const boy=isBoy();let html='<div class="costumeGrid">';
-  for(const k of ['pink','sky']){
-    const has=S.owned.dresses.includes(k),on=S.outfit.dress===k;
-    const file=k==='sky'?(boy?'lumi-prince-sky-walk.webp':'lumi-princess-sky-walk.webp'):(boy?'lumi-prince-walk.webp':'lumi-storybook-walk.webp');
-    const name=k==='sky'?'하늘 의상':'기본 의상';
-    html+='<button type="button" class="chip costumeCard'+(on?' on':'')+(has?'':' lock')+'" data-kind="dress" data-k="'+k+'" aria-pressed="'+on+'"><span class="costumeArt" aria-hidden="true" style="background-image:url(assets/'+file+')"></span><span>'+name+'</span><span class="small">'+(has?(on?'✓ 입고 있어요':'갈아입기'):'🔒 곰 몽몽 돕기')+(k==='sky'?' · 💖+3':'')+'</span></button>';
-  }
-  return html+'</div>';
 }
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
     +'<div class="small">꾸미기 매력 보너스: 💖 +<span id="wch">'+gearCharm()+'</span></div></div>';
   const painted=S.avatarStyle==='storybook';
-  html+='<div class="card" style="text-align:center"><strong>'+(painted?'🎨 동화풍 꾸미기':'🧵 자유 꾸미기')+'</strong><div class="small" style="margin:8px 0">'+(painted?'기본·하늘 의상과 나비 날개를 골라 보세요.<br>다른 옷·머리·장비는 자유 꾸미기에서 바꿀 수 있어요.':'옷·머리·장비를 자유롭게 조합해요.<br>동화풍으로 바꾸어도 보유 아이템과 능력치는 유지돼요.')+'</div><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+painted+'">그림 방식 바꾸기</button><button id="storybookClassicFallback" class="pillbtn" type="button" style="display:none;margin-top:8px">기존 그림으로 꾸미기</button></div>';
-  if(painted){
-    html+=storybookCostumeCards();
-    html+='<div class="small" style="margin-bottom:10px">머리·신발·장식은 그림의 기본 모습이에요. 선택 장비의 능력치는 유지돼요.</div>';
-    if(!['pink','sky'].includes(S.outfit.dress)||S.outfit.wings&&S.outfit.wings!=='butterfly')html+='<div class="small" role="status">선택한 장비의 모양은 자유 꾸미기에서 볼 수 있어요.</div>';
-  }else{
+  html+='<div class="card" style="text-align:center"><strong>'+(painted?'🎨 동화풍 꾸미기':'🧵 자유 꾸미기')+'</strong><div class="small" style="margin:8px 0">'+(painted?'구입하고 얻은 모든 옷·머리·장비를 새 그림으로 입어 보세요.':'옷·머리·장비를 자유롭게 조합해요.<br>동화풍으로 바꾸어도 보유 아이템과 능력치는 유지돼요.')+'</div><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+painted+'">그림 방식 바꾸기</button><button id="storybookClassicFallback" class="pillbtn" type="button" style="display:none;margin-top:8px">기존 그림으로 꾸미기</button></div>';
   html+='<div class="small" style="margin:8px 4px 4px">👗 의상</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
   html+='<div class="small" style="margin:8px 4px 4px">👠 구두</div>'+chipRow('shoes',SHOES,S.owned.shoes,S.outfit.shoes);
-  if(S.owned.wands.length)html+='<div class="small" style="margin:8px 4px 4px">🪄 요술봉</div>'+chipRow('wand',WANDS,S.owned.wands,S.outfit.wand,true);
-  if(S.owned.gloves.length)html+='<div class="small" style="margin:8px 4px 4px">🧤 장갑</div>'+chipRow('gloves',GLOVES,S.owned.gloves,S.outfit.gloves,true);
+  html+='<div class="small" style="margin:8px 4px 4px">🪄 요술봉</div>'+chipRow('wand',WANDS,S.owned.wands,S.outfit.wand,true);
+  html+='<div class="small" style="margin:8px 4px 4px">🧤 장갑</div>'+chipRow('gloves',GLOVES,S.owned.gloves,S.outfit.gloves,true);
   html+='<div class="small" style="margin:8px 4px 4px">✨ 장식</div>'+chipRow('acc',ACCS,S.owned.accs,S.outfit.acc);
-  }
-  html+='<div id="storybookWingStatus" class="small" role="status"></div><button id="storybookWingRetry" class="pillbtn" type="button" style="display:none">날개 그림 다시 불러오기</button>';
+  html+='<div id="storybookWingStatus" class="small" role="status"></div>';
   html+='<div class="small" style="margin:8px 4px 4px">🦋 날개</div><div style="margin-bottom:4px">';
   html+='<button class="chip'+(!S.outfit.wings?' on':'')+'" data-kind="wings" data-k="none">없음</button>';
   for(const k in WINGS){
-    if(painted&&k!=='butterfly')continue;
     const wdf=WINGS[k], has=S.owned.wings.includes(k), on=S.outfit.wings===k;
     const price=has?'':(wdf.buy?' <span class="small" style="color:#c98a2a">🪙'+wdf.buy+'</span>':wdf.gems?' <span class="small" style="color:#7e5ae0">💎'+wdf.gems+'</span>':' 🔒');
     html+='<button class="chip'+(on?' on':'')+(has?'':' lock')+'" data-kind="wings" data-k="'+k+'">'
-      +wdf.n+' <span class="small">💖+'+wdf.charm+'</span>'+price+'</button>';
+      +wardrobeWingIcon(k)+wdf.n+' <span class="small">💖+'+wdf.charm+'</span>'+price+'</button>';
   }
   html+='</div>';
-  if(painted)html+='<div class="small">나비 날개는 레벨 5에 받는 선물이에요.</div>';
-  else{
+  {
   html+='<div class="small" style="text-align:center;color:#a98">💎 보석은 광산의 드워프에게서 만들어요 · 보유 💎 '+inv('gem')+'</div>';
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   }
   openModal('👗 옷장',html);
   $('storybookToggle').addEventListener('click',toggleStorybookStyle);
   $('storybookClassicFallback').addEventListener('click',()=>{S.avatarStyle='classic';openCloset();saveGame();});
-  $('storybookWingRetry').addEventListener('click',()=>ensureStorybookWings(true));
-  updateStorybookButton();updateStorybookWingStatus();drawCloset();
+  updateStorybookButton();drawCloset();
   const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes,wand:S.owned.wands,gloves:S.owned.gloves};
   const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wand:WANDS,gloves:GLOVES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
@@ -2727,7 +2718,7 @@ function drawCloset(){
   const c=$('wcv'); if(!c)return; const g=c.getContext('2d');
   g.clearRect(0,0,180,210);
   g.fillStyle='#fff2f7'; g.beginPath(); g.arc(90,105,80,0,7); g.fill();
-  drawPrincess(g,90,192,1.9,0,false,S.outfit);
+  drawPrincess(g,90,190,1.45,0,false,S.outfit);
 }
 $('btnCloset').addEventListener('pointerdown',()=>{audio();openCloset();});
 
@@ -2885,21 +2876,21 @@ function openRoomEditor(){
     html+='<div class="small" style="margin:2px 4px">🧺 보관함</div><div style="margin-bottom:6px">';
     if(!invKeys.length)html+='<span class="small" style="margin-left:6px;color:#a98">비어 있어요 — 아래 상점에서 사거나, 놓인 가구를 📦 보관해요</span>';
     for(const k of invKeys){const f=FURN[k];
-      html+='<button class="chip'+(edSel&&edSel.inv===k?' on':'')+'" data-inv="'+k+'">'+f.e+' '+f.n+' ×'+invCnt(k)+'</button>';}
+      html+='<button class="chip'+(edSel&&edSel.inv===k?' on':'')+'" data-inv="'+k+'">'+furnitureImg(k)+' '+f.n+' ×'+invCnt(k)+'</button>';}
     html+='</div>';
     // 격자
     if(isWall){
       html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
       for(let gx=0;gx<RPC;gx++){
         const pl=S.roomWall[gx], f=pl&&FURN[pl], on=edSel&&edSel.wcell==gx;
-        html+='<button class="rcell" data-wcell="'+gx+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#e6d4f0')+';background:'+(on?'#fff0f6':'#fbf6ff')+';font-size:'+(f?Math.max(14,Math.min(32,Math.round(f.sz*0.55))):18)+'px;line-height:1">'+(f?f.e:'')+'</button>';
+        html+='<button class="rcell" data-wcell="'+gx+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#e6d4f0')+';background:'+(on?'#fff0f6':'#fbf6ff')+';font-size:'+(f?Math.max(14,Math.min(32,Math.round(f.sz*0.55))):18)+'px;line-height:1">'+(f?furnitureImg(pl,46):'')+'</button>';
       }
       html+='</div>';
     }else{
       html+='<div style="display:grid;grid-template-columns:repeat('+RPC+',1fr);gap:5px;margin:6px 0">';
       for(let gy=0;gy<RPR;gy++)for(let gx=0;gx<RPC;gx++){
         const key=gx+','+gy, pl=S.room[key], f=pl&&FURN[pl], on=edSel&&edSel.cell===key;
-        html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#efd8e6')+';background:'+(on?'#fff0f6':'#fffdf8')+';font-size:'+(f?Math.max(14,Math.min(36,Math.round(f.sz*0.45))):18)+'px;line-height:1">'+(f?f.e:'')+'</button>';
+        html+='<button class="rcell" data-cell="'+key+'" style="aspect-ratio:1;border-radius:12px;border:2.5px solid '+(on?'#ff5f9e':'#efd8e6')+';background:'+(on?'#fff0f6':'#fffdf8')+';font-size:'+(f?Math.max(14,Math.min(36,Math.round(f.sz*0.45))):18)+'px;line-height:1">'+(f?furnitureImg(pl,46):'')+'</button>';
       }
       html+='</div>';
     }
@@ -2919,7 +2910,7 @@ function openRoomEditor(){
     const shop=Object.keys(FURN).filter(k=>!!FURN[k].wall===isWall&&FURN[k].cost>0);
     html+='<div class="small" style="margin:8px 4px 4px">🛒 '+(isWall?'벽 장식':'가구')+' 상점 <span style="color:#a98">· 하나 사면 실물 1개!</span></div>';
     for(const k of shop){const f=FURN[k];
-      html+='<div class="card rowline"><div style="font-size:24px">'+f.e+'</div>'
+      html+='<div class="card rowline"><div>'+furnitureImg(k,52)+'</div>'
         +'<div class="grow"><div>'+f.n+(invCnt(k)||Object.values(S.room).includes(k)||Object.values(S.roomWall).includes(k)?' <span class="small">보유</span>':'')+'</div><div class="small">🪙 '+f.cost+'</div></div>'
         +'<button class="pillbtn" data-buyf="'+k+'">사기</button></div>';}
   }else{
@@ -3208,29 +3199,29 @@ function drawWorld(){
     if(t===0){
       // 일정한 바탕색 위에 둥근 풀잎을 분산해 네모 타일 경계를 없애요.
       ctx.fillStyle='#a9c69c';ctx.fillRect(px,py,TILE,TILE);
-      for(let n=0;n<3;n++){
+      if(!drawPaintedTerrain(0,tx,ty,px,py))for(let n=0;n<3;n++){
         const qx=px+5+hash(tx*7+n,ty*3)*38,qy=py+6+hash(tx*3,ty*7+n)*34;
         ctx.fillStyle=n===0?'#a0bf91':'#b5cfa6';ctx.beginPath();ctx.ellipse(qx,qy,6+n*2,2.2,0,0,7);ctx.fill();
         if(hash(tx+n,ty*9)>.62){ctx.strokeStyle='#7f9f78';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(qx-2,qy);ctx.quadraticCurveTo(qx-3,qy-4,qx-5,qy-4);ctx.moveTo(qx,qy);ctx.quadraticCurveTo(qx,qy-5,qx+2,qy-6);ctx.stroke();}
         if(n===0&&hash(tx*11,ty*13)>.91){ctx.fillStyle='#f8eed6';ctx.beginPath();ctx.arc(qx,qy-3,1.7,0,7);ctx.fill();}
       }
     }else if(t===2){
-      ctx.fillStyle='#e8d9b9';ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle='#e8d9b9';ctx.fillRect(px,py,TILE,TILE);drawPaintedTerrain(1,tx,ty,px,py);
       if(hash(tx,ty)>0.7){ctx.fillStyle='#e5cf98';ctx.fillRect(px+hash(tx*5,ty)*38,py+hash(tx,ty*5)*38,4,4);}
     }else if(t===1){
       const deep=ty>=SEA_TOP+2;
-      ctx.fillStyle=deep?'#6aa6af':'#8bbfc0';ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle=deep?'#6aa6af':'#8bbfc0';ctx.fillRect(px,py,TILE,TILE);drawPaintedTerrain(2,tx,ty,px,py);
       const w=Math.sin(T*1.6+tx*0.9+ty)*0.5+0.5;
       if(hash(tx,ty)>0.45){ctx.fillStyle='rgba(255,255,255,'+(0.15+w*0.2)+')';
         ctx.fillRect(px+6,py+14+Math.sin(T*2+tx)*3,26,3);}
     }else if(t===4){
       ctx.fillStyle=hash(tx,ty)>0.5?'#f2f8fc':'#eaf3fa';
-      ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillRect(px,py,TILE,TILE);drawPaintedTerrain(3,tx,ty,px,py);
       if(hash(tx*5,ty*3)>0.8){ctx.fillStyle='#dcebf6';
         ctx.beginPath();ctx.arc(px+10+hash(tx,ty)*28,py+12+hash(ty,tx)*24,3,0,7);ctx.fill();}
     }else{ // t===3 길: 둥근 흙길
       ctx.fillStyle='#e2cfac';
-      ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillRect(px,py,TILE,TILE);drawPaintedTerrain(1,tx,ty,px,py);
       const isP=(a,b)=>{const row=tiles[b];return row&&row[a]===3;};
       const isG=(a,b)=>{const row=tiles[b];return row&&row[a]===0;};
       // 잔디와 만나는 모서리 둥글리기 (양옆이 모두 길이 아닐 때)
@@ -3447,6 +3438,10 @@ function drawCastle(){
   const x=CASTLE.x-cam.x,y=CASTLE.y-cam.y,w=CASTLE.w,h=CASTLE.h,base=y+h,cx=x+w/2;
   if(x>W+90||y>H+90||x+w<-90||base<-340)return;
   const g=ctx,rk=S?curRank():1;
+  if(drawPaintedProp(8,CASTLE.x+w/2,CASTLE.y+h,w+30,340)){
+    if(rk>=2){g.fillStyle=rk>=4?'#eac768':'#cb92ab';for(const dx of [-1,1]){g.fillRect(cx+dx*55-6,base-100,12,29);}}
+    if(rk>=4){g.fillStyle='#ffe49a';star(g,cx,base-250,9,4,5);}return;
+  }
   g.save();g.lineJoin='round';g.lineCap='round';
   const ell=(x,y,rx,ry,c)=>{g.fillStyle=c;g.beginPath();g.ellipse(x,y,rx,ry,0,0,Math.PI*2);g.fill();};
   const box=(x,y,w,h,r,c,stroke)=>{g.fillStyle=c;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();if(stroke){g.strokeStyle=stroke;g.lineWidth=1.3;g.stroke();}};
@@ -3600,6 +3595,7 @@ function drawTreeVec(kind,wx,wy){
   const x=wx-cam.x,y=wy-cam.y;
   if(x<-60||x>W+60||y<-90||y>H+40)return;
   if(!['🌲','🌳','🌸','🌴'].includes(kind)){drawEmoji(kind,wx,wy,44,17);return;}
+  if(drawPaintedProp(['🌲','🌳','🌸','🌴'].indexOf(kind),wx,wy,100,124))return;
   if(!treeSpriteCache.has(kind)){
     const sprite=document.createElement('canvas');sprite.width=144;sprite.height=160;
     const g=sprite.getContext('2d');g.scale(2,2);g.translate(36,68);
@@ -3610,6 +3606,7 @@ function drawTreeVec(kind,wx,wy){
 function drawForageVec(k,wx,wy,i){
   const x=wx-cam.x,y=wy-cam.y;
   if(x<-40||x>W+40||y<-60||y>H+40)return;
+  const pi={flower:4,mushroom:5,cherry:6,iceflower:7}[k];if(pi!==undefined&&drawPaintedProp(pi,wx,wy,30))return;
   const g=ctx, sway=Math.sin(T*1.8+i)*1.2;
   g.fillStyle='rgba(0,0,0,.12)';g.beginPath();g.ellipse(x,y+3,10,3.5,0,0,7);g.fill();
   if(k==='flower'){
@@ -3664,6 +3661,9 @@ const PEOPLE={
   local:{skin:'#f2c9a8',hair:'#e8883a',hairStyle:'short',top:'#f4d35e',legs:'#4d7fc4',shoes:'#fff',sc:0.85},
 };
 function drawPerson(P,wx,wy,bob){
+ const pi=P.wings?0:P.mustache?1:P.beard?2:P.elfEars?3:4;
+ if(drawPaintedNpc(pi,wx,wy+bob,64*(P.sc||1)))return;
+
   const x=wx-cam.x,y=wy-cam.y;
   if(x<-60||x>W+60||y<-90||y>H+40)return;
   const g=ctx, sc=P.sc||1, wd=P.wide?1.25:1;
@@ -3729,6 +3729,7 @@ function drawOwl(wx,wy,bob){
   g.restore();
 }
 function drawStarSpirit(wx,wy,bob){
+ if(drawPaintedNpc(6,wx,wy+bob,48))return;
   const x=wx-cam.x,y=wy-cam.y; if(x<-60||x>W+60||y<-80||y>H+40)return;
   const g=ctx, cy=y-22+bob, pulse=1+Math.sin(T*3)*0.06;
   g.save();g.shadowColor='#ffe36b';g.shadowBlur=22;
@@ -3742,7 +3743,8 @@ function drawStarSpirit(wx,wy,bob){
   g.font=efont(8);g.textAlign='center';g.globalAlpha=.6+Math.sin(T*5)*.4;g.fillStyle='#fff';g.fillText('✦',x-22,cy-14);g.fillText('✦',x+20,cy+8);g.globalAlpha=1;
 }
 function drawNamedNpc(id,wx,wy,bob){
-  if(id==='olly')drawOwl(wx,wy,bob);
+  if(id==='olly'&&paintedAsset('storybook-pets').ready)drawPaintedCreature(ctx,PETSPEC.owl,wx-cam.x,wy-cam.y-16+bob,40);
+  else if(id==='olly')drawOwl(wx,wy,bob);
   else if(PEOPLE[id])drawPerson(PEOPLE[id],wx,wy,bob);
   else drawEmoji((REGIONNPC[id]||{}).e||'🙂',wx,wy+bob,34,14);
 }
@@ -3756,6 +3758,10 @@ const NPCLOOK={
   deer:{c:'#c9a06a',sh:'#ab8352',belly:'#eddcc0',ear:'side',antler:true,spots:true,big:1.1,cheek:'#e0ab86'},
 };
 function drawAnimal(id,wx,wy,bob){
+ if(id==='bird'&&drawPaintedNpc(5,wx,wy+bob,45))return;
+ const sp={rabbit:'bun',squirrel:'squir',cat:'kitten',fox:'redfox',bear:'bcub',deer:'deer2'}[id];
+ if(sp&&paintedAsset('storybook-pets').ready){ctx.fillStyle='rgba(50,60,40,.15)';ctx.beginPath();ctx.ellipse(wx-cam.x,wy-cam.y+2,14,3,0,0,7);ctx.fill();drawPaintedCreature(ctx,PETSPEC[sp],wx-cam.x,wy-cam.y-16+bob,40);return;}
+
   const L=NPCLOOK[id]; if(!L){drawEmoji(NPCS[id].e,wx,wy+bob,34,15);return;}
   const x=wx-cam.x,y=wy-cam.y;
   if(x<-60||x>W+60||y<-80||y>H+50)return;
@@ -3864,63 +3870,134 @@ function drawNpcs(){
   }
 }
 
+// Shared painted assets. Failed downloads fall back to the original renderer without changing saves.
+const paintedAssets={},paintedTintCache=new Map();
+const PAINTED_SIZES={
+ 'modular-girl-body':[576,540],'modular-boy-body':[576,540],
+ 'modular-girl-heads':[432,1080],'modular-boy-heads':[432,1080],
+ 'modular-wings':[768,2112],'modular-accessories':[768,1344],
+ 'storybook-pets':[1024,3840],'storybook-furniture':[1024,1280], 'storybook-room':[1152,896], 'storybook-world':[768,1024], 'storybook-npcs':[512,1024], 'storybook-terrain':[1024,1024], 'storybook-residents':[1024,512]
+};
+function paintedAsset(name,retry=false){
+ let a=paintedAssets[name];if(!a)a=paintedAssets[name]={ready:false,loading:false,failed:false,image:null};
+ if(!a.ready&&!a.loading&&(!a.failed||retry)&&typeof Image!=='undefined'){
+  a.loading=true;a.failed=false;const img=new Image();a.image=img;
+  img.onerror=()=>{a.loading=false;a.failed=true;updateStorybookButton();};
+  img.onload=()=>{const wh=PAINTED_SIZES[name];if(wh&&(img.naturalWidth!==wh[0]||img.naturalHeight!==wh[1]))return img.onerror();a.ready=true;a.loading=false;
+   if(name==='storybook-pets')for(const k in _spCache)delete _spCache[k];
+   updateStorybookButton();drawCloset();};
+  img.src='assets/'+name+'.webp';
+ }return a;
+}
+function paintedRequired(){const sex=isBoy()?'boy':'girl';return ['modular-'+sex+'-body','modular-'+sex+'-heads','modular-accessories'].concat(S.outfit.wings?['modular-wings']:[]);}
+function tintPainted(name,kind,color,shoeColor){
+ const a=paintedAsset(name);if(!a.ready)return null;
+ if(kind==='hair'&&color===HAIRS.brown.c)return a.image;
+ const key=[name,kind,color,shoeColor].join('|');if(paintedTintCache.has(key))return paintedTintCache.get(key);
+ const cv=document.createElement('canvas');cv.width=a.image.naturalWidth;cv.height=a.image.naturalHeight;
+ const g=cv.getContext('2d',{willReadFrequently:true});g.drawImage(a.image,0,0);
+ const im=g.getImageData(0,0,cv.width,cv.height),d=im.data;
+ const rgb=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));const cloth=rgb(color==='rainbow'?'#ff9ecb':color),shoe=shoeColor?rgb(shoeColor):null;
+ for(let i=0;i<d.length;i+=4){if(d[i+3]<8)continue;const r=d[i],v=d[i+1],b=d[i+2],y=Math.floor(i/4/cv.width)%180;let target=null,light=1;
+  if(kind==='body'){
+   if(shoe&&((name.includes('girl')&&y>149&&r>v*1.08)||(name.includes('boy')&&y>139&&r>v*1.2&&v>b*1.08))){target=shoe;light=(r*.3+v*.59+b*.11)/115;}
+   else if(b>r*1.1&&b>=v*.98){target=cloth;light=(r*.3+v*.59+b*.11)/175;if(color==='rainbow'){const palette=['#ff9ecb','#ffd76e','#9be8c9','#8fd3ff','#c9a6ff'];target=rgb(palette[Math.min(4,Math.max(0,Math.floor((y-76)/15)))]);}}
+  }else {
+   const px=(i/4%cv.width)%144,view=Math.floor((i/4%cv.width)/144);
+   // Face/eye/neck exclusion keeps dyes out of skin and pupils, including warm shadows.
+   const face=view!==2&&Math.pow((px-(view===1?80:72))/19,2)+Math.pow((y-58)/19,2)<1;
+   const neck=px>63&&px<83&&y>=67&&y<80;
+   const skin=r>150&&v>85&&b>50&&r/v<1.48&&v/b<1.85;
+   if(!face&&!neck&&!skin&&r>45&&r>v*1.38&&v>b*1.1){target=cloth;light=(r*.3+v*.59+b*.11)/103;}
+  }
+  if(target){for(let c=0;c<3;c++)d[i+c]=Math.min(255,target[c]*Math.min(1,light)+Math.max(0,light-1)*85);}
+ }
+ g.putImageData(im,0,0);paintedTintCache.set(key,cv);if(paintedTintCache.size>24)paintedTintCache.delete(paintedTintCache.keys().next().value);return cv;
+}
+function drawPaintedEquipment(g,index,x,y,w,h){const a=paintedAsset('modular-accessories');if(a.ready)g.drawImage(a.image,index%4*192,Math.floor(index/4)*192,192,192,x-w/2,y-h/2,w,h);}
+const PAINTED_HANDS={"girl":[[[[-34,-61],[32,-60]],[[-34,-60],[34,-60]],[[-35,-60],[34,-60]],[[-33,-61],[33,-60]]],[[[-29,-63],[23,-62]],[[-29,-63],[23,-62]],[[-29,-63],[24,-61]],[[-29,-63],[24,-61]]],[[[-33,-61],[34,-61]],[[-33,-61],[33,-60]],[[-33,-61],[33,-61]],[[-33,-61],[34,-61]]]],"boy":[[[[-30,-63],[31,-62]],[[-24,-62],[29,-62]],[[-31,-61],[29,-62]],[[-24,-62],[29,-63]]],[[[-30,-59],[26,-62]],[[-26,-59],[25,-63]],[[-31,-59],[26,-62]],[[-26,-59],[26,-62]]],[[[-32,-60],[32,-60]],[[-30,-60],[29,-64]],[[-31,-61],[31,-61]],[[-30,-60],[30,-63]]]]};
+function drawModularCharacter(g,x,y,s,walkT,moving,facing){
+ const sex=isBoy()?'boy':'girl',o=S.outfit;if(!paintedRequired().map(n=>paintedAsset(n)).every(a=>a.ready))return false;
+ const body=tintPainted('modular-'+sex+'-body','body',DRESSES[o.dress].c||'rainbow',SHOES[o.shoes].c);
+ const head=tintPainted('modular-'+sex+'-heads','hair',HAIRS[o.hair].c);if(!body||!head)return false;
+ const p=storybookPose(walkT,moving,facing),hs=Math.max(0,Object.keys(HAIRSTYLES).indexOf(o.hairstyle)),u=.6*s;
+ g.save();g.translate(x,y);g.fillStyle='rgba(58,44,38,.19)';g.beginPath();g.ellipse(0,2*s,14*s,3*s,0,0,7);g.fill();g.scale((p.flip?-1:1)*u,u);
+ const wing=()=>{if(!o.wings)return;const a=paintedAssets['modular-wings'],i=Object.keys(WINGS).indexOf(o.wings);g.save();g.scale(1+Math.sin(walkT*4)*.025,1);g.drawImage(a.image,p.row*256,i*192,256,192,-79,-139,158,118);g.restore();};
+ const hands=()=>{
+ const hand=PAINTED_HANDS[sex][p.row][p.frame];
+ if(o.wand)drawPaintedEquipment(g,26,hand[1][0]+2,hand[1][1]-11,42,65);
+ if(o.gloves){const atlas=paintedAssets['modular-accessories'].image;
+  for(const side of (p.row===1?[1]:[-1,1])){g.save();g.translate(hand[side===1?1:0][0],hand[side===1?1:0][1]);g.rotate(Math.PI+(p.row===1?-.3:side*.25));g.drawImage(atlas,576+(side===1?96:0),1152,96,192,-6,-9,12,18);g.restore();}
+ }
+ };
+ if(p.row!==2)wing();
+ g.drawImage(body,p.frame*144,p.row*180,144,180,-72,-172,144,180);
+ if(o.dress==='lilac'){for(const dx of [-16,16])drawPaintedEquipment(g,3,dx,sex==='boy'?-56:-37,13,13);}
+ if(p.row===2){hands();wing();}
+ const bob=moving?Math.sin(walkT*8)*.6:0;
+ g.drawImage(head,p.row*144,hs*180,144,180,-72,-172+bob,144,180);
+ const ai=Object.keys(ACCS).indexOf(o.acc),hats=['straw','starhat','tophat','cap','explorer','knight'];
+ if(ai>=0){const k=o.acc,hat=hats.includes(k),crown=/crown|tiara/.test(k)||k==='gem',torso=['bowtie','medal','amulet'].includes(k);
+  if(!(p.row===2&&torso))drawPaintedEquipment(g,ai,torso?0:p.row===1?5:crown||hat?0:p.row===2?-23:23,torso?-88:hat?-144:crown?(-153-(hs===5?13:0)):-133,torso?25:hat?64:crown?43:28,torso?25:hat?61:crown?37:28);
+ }
+ if(p.row!==2)hands();
+ if(['star','legend','gold2'].includes(o.dress)){g.fillStyle=o.dress==='star'?'#fff6bf':'#fff9de';for(let i=0;i<5;i++){const dx=(i%3-1)*12,dy=-56+Math.floor(i/3)*14;star(g,dx,dy,2.5,1,5);}}
+ g.restore();return true;
+}
+function drawPaintedCreature(g,d,cx,cy,size){const i=Object.values(PETSPEC).indexOf(d);if(i<0)return false;const a=paintedAsset('storybook-pets');if(!a.ready)return false;
+ g.drawImage(a.image,i%4*256,Math.floor(i/4)*256,256,256,cx-size*.65,cy-size*.88,size*1.3,size*1.3);return true;}
+function drawPaintedNpc(i,wx,wy,size){const a=paintedAsset('storybook-npcs');if(!a.ready)return false;ctx.drawImage(a.image,i%2*256,Math.floor(i/2)*256,256,256,wx-cam.x-size/2,wy-cam.y-size,size,size);return true;}
+function drawPaintedTerrain(i,tx,ty,x,y){const a=paintedAsset('storybook-terrain');if(!a.ready)return false;const sx=((tx%4)+4)%4*128,sy=((ty%4)+4)%4*128;ctx.save();ctx.globalAlpha=.7;ctx.drawImage(a.image,i%2*512+sx,Math.floor(i/2)*512+sy,128,128,x,y,TILE,TILE);ctx.restore();return true;}
+function drawPaintedProp(i,wx,wy,w,h=w){const a=paintedAsset('storybook-world');if(!a.ready)return false;ctx.drawImage(a.image,i%3*256,Math.floor(i/3)*256,256,256,wx-cam.x-w/2,wy-cam.y-h,w,h);return true;}
+function drawPaintedFurniture(key,wx,wy,size){const a=paintedAsset('storybook-furniture');if(!a.ready)return false;const i=Object.keys(FURN).indexOf(key),f=FURN[key],x=wx-cam.x,y=wy-cam.y;
+ if(!f.wall&&!f.flat){ctx.fillStyle='rgba(66,42,30,.16)';ctx.beginPath();ctx.ellipse(x,y-1,size*.31,size*.055,0,0,7);ctx.fill();}
+ // Each atlas cell is packed to bottom center: the feet and contact shadow share a baseline.
+ ctx.drawImage(a.image,i%4*256,Math.floor(i/4)*256,256,256,x-size/2,y-size,size,size);return true;}
+const paintedRoomCache=new Map();
+function drawPaintedRoom(img,x,y,w,h,wp,fl){
+ const key=S.roomDeco.wall+'|'+S.roomDeco.floor;let cv=paintedRoomCache.get(key);
+ if(!cv){cv=document.createElement('canvas');cv.width=1152;cv.height=896;const g=cv.getContext('2d');
+  g.drawImage(img,0,0,1152,316,0,0,1152,256);g.drawImage(img,0,316,1152,580,0,256,1152,640);
+  g.globalCompositeOperation='color';
+  if(S.roomDeco.wall!=='pink'){g.fillStyle=wp.c1;g.fillRect(0,0,1152,256);}
+  if(S.roomDeco.floor!=='wood'){g.fillStyle=fl.c;g.fillRect(0,256,1152,640);}
+  g.globalCompositeOperation='source-over';
+  if(fl.c2){g.globalAlpha=.25;g.fillStyle=fl.c2;for(let r=0;r<5;r++)for(let c=0;c<9;c++)if((r+c)%2)g.fillRect(c*128,256+r*128,128,128);g.globalAlpha=1;}
+  paintedRoomCache.set(key,cv);
+ }ctx.drawImage(cv,x,y,w,h);
+}
+let roomForeground=[];
+function drawRoomFurniture(it){const sc=rowScale(it.gy),sz=Math.round((it.f.sz||28)*sc*1.32);if(!drawPaintedFurniture(it.key,it.wx,it.wy,sz))drawEmoji(it.f.e,it.wx,it.wy,sz*.8,0);}
+function drawRoomForeground(){roomForeground.forEach(drawRoomFurniture);}
+
 /* ---- 공주님 ---- */
 // 성별별 이미지 캐시. 저장되는 표시 방식과 비동기 로딩 상태를 분리해요.
 const storybookArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
-const storybookSkyArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
-function storybookCostumeArt(sex,dress){return (dress==='sky'?storybookSkyArt:storybookArt)[sex];}
-// Optional painted equipment; loaded only when equipped, shared by both genders.
-const storybookWings={ready:false,loading:false,failed:false,image:null};
-function updateStorybookWingStatus(){
-  const active=S&&S.avatarStyle==='storybook'&&S.outfit.wings==='butterfly';
-  const status=$('storybookWingStatus'),retry=$('storybookWingRetry');
-  if(status)status.textContent=active?(storybookWings.failed?'날개 그림을 불러오지 못해 기존 그림으로 보여 드려요.':storybookWings.loading?'나비 날개를 불러오는 중이에요.':''):'';
-  if(retry)retry.style.display=active&&storybookWings.failed?'inline-block':'none';
-}
-function ensureStorybookWings(retry=false){
-  const art=storybookWings;
-  if(art.ready||art.loading||(art.failed&&!retry)||typeof Image==='undefined')return;
-  const img=new Image();art.image=img;art.loading=true;art.failed=false;
-  const finished=()=>{updateStorybookWingStatus();drawCloset();};
-  img.onerror=()=>{art.loading=false;art.ready=false;art.failed=true;finished();};
-  img.onload=()=>{if(img.naturalWidth!==768||img.naturalHeight!==192){img.onerror();return;}
-    art.ready=true;art.loading=false;art.failed=false;finished();};
-  img.src='assets/lumi-butterfly-wings.webp';updateStorybookWingStatus();
-}
-function drawStorybookWings(g,p,unit,walkT,moving){
-  g.save();
-  // Gentle independent flutter. The character's feet and original art stay fixed.
-  g.scale(1+Math.sin(walkT*(moving?8:3))*.035,1);
-  g.drawImage(storybookWings.image,p.row*256,0,256,192,-72*unit,-124*unit,144*unit,108*unit);
-  g.restore();
-}
 function updateStorybookButton(){
-  updateStorybookWingStatus();
-  const b=$('storybookToggle');if(!b||!S)return;
-  const art=storybookCostumeArt(isBoy()?'boy':'girl',S.outfit.dress);
-  const fallback=$('storybookClassicFallback');if(fallback)fallback.style.display=S.avatarStyle==='storybook'&&art.failed?'inline-block':'none';
-  b.textContent=S.avatarStyle==='storybook'?(art.loading?'새 그림을 불러오는 중…':art.failed?'그림 다시 불러오기':'기존 자유 꾸미기로 전환'):'동화풍 그림으로 전환';
-  b.setAttribute&&b.setAttribute('aria-pressed',String(S.avatarStyle==='storybook'));
+ const b=$('storybookToggle');if(!b||!S)return;
+ const active=S.avatarStyle==='storybook',arts=active?paintedRequired().map(n=>paintedAsset(n)):[];
+ const failed=arts.some(a=>a.failed),loading=arts.some(a=>!a.ready&&!a.failed);
+ b.textContent=active?(failed?'그림 다시 불러오기':loading?'그림 불러오는 중…':'기존 그림으로 전환'):'동화풍 그림으로 전환';
+ b.setAttribute&&b.setAttribute('aria-pressed',String(active));
+ const f=$('storybookClassicFallback');if(f)f.style.display=active&&failed?'inline-block':'none';
+ const status=$('storybookWingStatus');if(status)status.textContent=failed?'일부 그림을 불러오지 못했어요. 선택한 장비를 기존 그림으로 표시하고 있어요.':loading?'착용 그림을 준비하고 있어요.':'';
 }
-function ensureStorybookArt(sex,retry=false,dress='pink'){
-  const art=storybookCostumeArt(sex,dress);
+function ensureStorybookArt(sex,retry=false){
+  const art=storybookArt[sex];
   if(!art||art.ready||art.loading||(art.failed&&!retry)||typeof Image==='undefined')return;
   const img=new Image();art.image=img;art.loading=true;art.failed=false;
   const finished=()=>{
-    const pick=$(sex==='boy'?'pickBoy':'pickGirl');if(pick&&dress!=='sky')pick.classList.toggle('artready',art.ready);
+    const pick=$(sex==='boy'?'pickBoy':'pickGirl');if(pick)pick.classList.toggle('artready',art.ready);
     updateStorybookButton();drawCloset();
   };
   img.onerror=()=>{art.loading=false;art.ready=false;art.failed=true;finished();};
   img.onload=()=>{if(img.naturalWidth!==576||img.naturalHeight!==540){img.onerror();return;}
     art.ready=true;art.loading=false;art.failed=false;finished();};
-  img.src=dress==='sky'?(sex==='boy'?'assets/lumi-prince-sky-walk.webp':'assets/lumi-princess-sky-walk.webp'):(sex==='boy'?'assets/lumi-prince-walk.webp':'assets/lumi-storybook-walk.webp');
+  img.src=sex==='boy'?'assets/lumi-prince-walk.webp':'assets/lumi-storybook-walk.webp';
 }
 function toggleStorybookStyle(){
-  const sex=isBoy()?'boy':'girl',art=storybookCostumeArt(sex,S.outfit.dress);
-  if(S.avatarStyle==='storybook'&&art.failed){ensureStorybookArt(sex,true,S.outfit.dress);updateStorybookButton();return;}
-  S.avatarStyle=S.avatarStyle==='storybook'?'classic':'storybook';
-  if(S.avatarStyle==='storybook')ensureStorybookArt(sex,true,S.outfit.dress);
-  openCloset();saveGame();
+ if(S.avatarStyle==='storybook'&&paintedRequired().some(n=>paintedAsset(n).failed)){paintedRequired().forEach(n=>paintedAsset(n,true));updateStorybookButton();return;}
+ S.avatarStyle=S.avatarStyle==='storybook'?'classic':'storybook';openCloset();saveGame();
 }
 function storybookPose(walkT,moving,facing){
   const dx=facing?facing.dx:0,dy=facing?facing.dy:1;
@@ -3928,20 +4005,8 @@ function storybookPose(walkT,moving,facing){
     frame:moving?Math.floor(Math.max(0,walkT)*8)%4:1};
 }
 function drawStorybookCharacter(g,x,y,s,walkT,moving,facing){
-  if(!S||S.avatarStyle!=='storybook')return false;
-  const sex=isBoy()?'boy':'girl',art=storybookCostumeArt(sex,S.outfit.dress);
-  ensureStorybookArt(sex,false,S.outfit.dress);
-  if(!art.ready)return false;
-  const wings=S.outfit.wings==='butterfly';
-  if(wings){ensureStorybookWings();if(!storybookWings.ready)return false;}
-  const p=storybookPose(walkT,moving,facing),unit=.6*s;
-  g.save();g.translate(x,y);
-  g.fillStyle='rgba(46,70,57,.17)';g.beginPath();g.ellipse(0,2*s,14*s,4*s,0,0,Math.PI*2);g.fill();
-  if(p.flip)g.scale(-1,1);
-  if(wings&&p.row!==2)drawStorybookWings(g,p,unit,walkT,moving);
-  g.drawImage(art.image,p.frame*144,p.row*180,144,180,-72*unit,-172*unit,144*unit,180*unit);
-  if(wings&&p.row===2)drawStorybookWings(g,p,unit,walkT,moving);
-  g.restore();return true;
+ if(!S||S.avatarStyle!=='storybook')return false;
+ return drawModularCharacter(g,x,y,s,walkT,moving,facing);
 }
 
 // 동화풍 3등신 캐릭터. 발 위치와 기존 의상 데이터는 그대로 사용해요.
@@ -4497,7 +4562,9 @@ function drawInterior(){
       continue;
     }
     const bob=Math.sin(T*2.4+h.tx)*2;
-    drawEmoji(h.e,h.px,h.py+bob,id==='queen'?38:33,13);
+    const residentArt=paintedAsset('storybook-residents'),ri=Object.keys(HUMANS).indexOf(id),rs=id==='queen'?78:67;
+    if(residentArt.ready)ctx.drawImage(residentArt.image,ri%4*256,Math.floor(ri/4)*256,256,256,x-rs/2,y+bob-rs,rs,rs);
+    else drawEmoji(h.e,h.px,h.py+bob,id==='queen'?38:33,13);
     ctx.font='12px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';
     ctx.fillText(h.n,x,y+24);
     const b=hBubble(id);
@@ -4723,14 +4790,17 @@ function drawRoom(){
    }
    ctx.fillStyle='#fff';ctx.fillRect(wxc-wr*1.55,wTop-10,wr*3.1,5); // 커튼봉
   }
+  // Painted room shares the existing world coordinates and floor boundary.
+  const roomArt=paintedAsset('storybook-room');
+  if(roomArt.ready)drawPaintedRoom(roomArt.image,ox,oy,rw,rh,wp,fl);
   // 벽걸이 아이템 (액자·거울·시계·조명·가랜드)
   for(const k in S.roomWall){
     const f=FURN[S.roomWall[k]]; if(!f)continue; const gx=+k;
     const wx=cellX(gx), wy=1.3*TILE+(f.bob?Math.sin(T*2+gx)*2:0);
-    drawEmoji(f.e,wx,wy,f.sz||24,0);
+    if(!drawPaintedFurniture(S.roomWall[k],wx,wy,(f.sz||24)*1.35))drawEmoji(f.e,wx,wy,f.sz||24,0);
   }
   // 황금 샹들리에 (천장 중앙)
-  {const chx=ox+rw/2, sway=Math.sin(T*1.2)*1.5;
+  if(!roomArt.ready){const chx=ox+rw/2, sway=Math.sin(T*1.2)*1.5;
    ctx.strokeStyle='#c9a24a';ctx.lineWidth=2;
    ctx.beginPath();ctx.moveTo(chx,oy);ctx.lineTo(chx+sway,oy+0.32*TILE);ctx.stroke();
    const cy2=oy+0.36*TILE+sway*0.2;
@@ -4753,20 +4823,18 @@ function drawRoom(){
   for(const key in S.room){
     const p=key.split(','), gx=+p[0], gy=+p[1], f=FURN[S.room[key]];
     if(!f)continue;
-    items.push({wx:cellX(gx), wy:cellY(gy), f, gx, gy});
+    items.push({wx:cellX(gx), wy:cellY(gy), f, gx, gy,key:S.room[key]});
   }
-  items.sort((a,b)=>a.wy-b.wy).forEach(it=>{
-    const bob=it.f.bob?Math.sin(T*2+it.gx)*3:0;
-    const sc=rowScale(it.gy!=null?it.gy:1), sz=Math.round((it.f.sz||28)*sc);
-    const sh=it.f.flat?4:Math.max(9,Math.round(sz*0.2));
-    drawEmoji(it.f.e,it.wx,it.wy+(it.f.flat?3:0)-bob,sz,sh);
+  roomForeground=[];
+  items.sort((a,b)=>Number(!a.f.flat)-Number(!b.f.flat)||a.wy-b.wy).forEach(it=>{
+    if(!it.f.flat&&it.wy>player.y+3)roomForeground.push(it);else drawRoomFurniture(it);
   });
   // 이젤(꾸미기)
-  drawEmoji(ROOMEDIT.e,ROOMEDIT.px,ROOMEDIT.py+Math.sin(T*2)*1.5,30,12);
+  if(!drawPaintedProp(10,ROOMEDIT.px,ROOMEDIT.py,42,58))drawEmoji(ROOMEDIT.e,ROOMEDIT.px,ROOMEDIT.py,30,0);
   {const x=ROOMEDIT.px-cam.x,y=ROOMEDIT.py-cam.y;ctx.font='11px Jua, sans-serif';ctx.fillStyle='#6b5560';ctx.textAlign='center';ctx.fillText('꾸미기',x,y+18);}
   // 출구
   const exX=ox+RW/2*TILE, exY=oy+(RH-0.55)*TILE;
-  ctx.font=efont(24);ctx.textAlign='center';ctx.fillText('🚪',exX,exY);
+  ctx.font=efont(24);ctx.textAlign='center';if(!drawPaintedProp(11,exX+cam.x,exY+cam.y,33,40))ctx.fillText('🚪',exX,exY);
   ctx.font='11px Jua, sans-serif';ctx.fillStyle='#7a5c40';ctx.fillText('⬇ 나가기',exX,exY-26);
 }
 /* ============ 다른 왕국 항구 (걸어다니는 지역) ============ */
@@ -5337,6 +5405,7 @@ function render(){
     drawRoom();
     drawPetFollow();
     drawPrincess(ctx,player.x-cam.x,player.y-cam.y,0.95,player.walkT,player.moving,S.outfit,{dx:player.lastdx||0,dy:player.lastdy??1});
+    drawRoomForeground();
     sparks.forEach(p2=>{ctx.globalAlpha=Math.max(p2.life,0);ctx.font=efont(p2.s);ctx.textAlign='center';ctx.fillText(p2.em,p2.x-cam.x,p2.y-cam.y);ctx.globalAlpha=1;});
     drawMini();
     return;

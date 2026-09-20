@@ -48,3 +48,49 @@ Automated tests additionally cover reward locking, actual wardrobe selection, im
 ## Wardrobe release polish
 
 Storybook mode shows illustrated cards for supported costumes and butterfly wings, with acquisition requirements. Other customization appears after explicitly switching to classic, preventing an unexpected style change from an ordinary selection. Mode changes rebuild the wardrobe without opening extra modals. Costume/wing buttons use click activation so keyboard activation and scrolling do not equip items on initial pointer contact. If the main image cannot load, the retry control is accompanied by a classic-mode escape button. The browser environment blocks local file URLs; public GitHub Pages is the target for post-deployment browser checks.
+
+## Full wardrobe and world artwork (2026-09-20)
+
+The storybook renderer now uses independent body, head, equipment and wing layers.
+All 79 existing wardrobe entries use their original keys, ownership, prices,
+reward conditions and bonuses. Selecting equipment no longer changes avatarStyle.
+Dresses and shoes use material recoloring; rainbow and star/legend variants include
+bands or embroidery. Hair color changes exclude the face, eyes and neck. These are
+color/pattern variants of the two base clothing silhouettes, not 17 different cuts.
+Headgear uses painted 2D overlays; body animation has four frames per direction.
+
+New assets (WebP with alpha unless noted):
+- modular-{girl,boy}-body.webp: 576×540; 4 walking frames × 3 views; 144×180 cells.
+- modular-{girl,boy}-heads.webp: 432×1080; front/right/back × six hairstyle rows.
+- modular-accessories.webp: 768×1344; 192px cells, ACCS order then wand and gloves.
+- modular-wings.webp: 768×2112; 256×192 cells; front/right/back × WINGS order.
+- storybook-pets.webp: 1024×3840; 256px cells, 60 species in PETSPEC order.
+- storybook-furniture.webp: 1024×1280; 256px cells in FURN order; bottom baseline 254.
+- storybook-room.webp: 1152×896, opaque. Source wall ends at y=316; game maps it to
+  2 tiles, floor to 5 tiles. Existing wallpaper/floor choices tint the painted room.
+- storybook-world.webp: 768×1024; 256px cells: fir, oak, cherry tree, palm, tulips,
+  mushrooms, cherry bush, ice flower, castle, cottage, easel, exit door.
+
+Furniture is rendered at its actual floor contact point, with a low contact shadow.
+Floor rugs are below furniture. Furniture in front of the player is drawn afterward.
+The room editor, furniture shop, capture dialog and pet collection show atlas thumbnails.
+Most animal quest NPCs share matching painted species art; human NPCs use separate painted atlases. Other regional scenery remains mixed
+vector/painted artwork.
+
+Image creation: built-in image generation, followed by mechanical atlas extraction,
+connected-component sprite separation, scaling and WebP packing. Prompts requested
+high-quality hand-painted storybook sprites, transparent backgrounds, consistent
+upper-left lighting, and independent atlas cells. Character prompts requested body-only
+sky-blue/ivory costumes and six chestnut hairstyles in three views for each gender.
+Equipment prompts listed the existing ACCS and WINGS entries in order. Animal prompts
+listed all 60 PETSPEC species in three groups of 20. Furniture prompts listed all 20
+FURN objects in their existing order, with visible feet and no floating cast shadows.
+The room prompt requested an empty pink/ivory royal bedroom with warm oak flooring.
+Nature prompts requested four trees, four forage plants, castle, cottage, easel and door.
+
+Validation: 37 automated tests cover persistence, controls, purchases, reward locks,
+all wardrobe categories, atlas mapping, direction/layer order, failure/retry and furniture
+anchors. Native Canvas visual QA covered both genders, all hairstyles and accessories,
+material colors, legendary equipment, wings, pets and the furnished room.
+
+Additional assets: storybook-npcs.webp (512×1024, eight 256px cells for five regional people, blue bird, star spirit and queen); storybook-residents.webp (1024×512, HUMANS order); storybook-terrain.webp (1024×1024, four 512px quadrants: grass, earth, water, snow). Built-in generation prompts specified existing roles and clothing, full-body isolated sprites, and low-contrast watercolor terrain materials. Hand equipment uses per-gender/per-direction/per-frame contact anchors.
