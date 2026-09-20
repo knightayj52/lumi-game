@@ -96,3 +96,8 @@ test('all furniture uses distinct cells and an exact floor contact anchor',async
 test('failed modular download exposes a working classic fallback',async()=>{
  const mock=adapter(),t=await setup(mock);t.run('openCloset()');mock.images.find(i=>i.src.includes('modular-girl-body')).onerror();assert.equal(t.elements.get('storybookClassicFallback').style.display,'inline-block');t.events['storybookClassicFallback:click']();assert.equal(t.run('S.avatarStyle'),'classic');assert.match(t.elements.get('mbody').innerHTML,/data-kind="hair"/);
 });
+test('continuing or importing a save never replaces purchased hair before tutorial completion',async()=>{
+ for(const sex of ['girl','boy']){const t=await setup(),d=t.fresh();d.sex=sex;d.tutorial=false;d.owned.hairstyles.push('twin');d.outfit.hairstyle='twin';
+ const u=await setup({saved:JSON.stringify(d)});u.run('audio=()=>{};beep=()=>{};startMusic=()=>{}');u.events['startbtn:pointerdown']();assert.equal(u.run('S.outfit.hairstyle'),'twin');assert.equal(u.run('S.sex'),sex);
+ const v=await setup();assert.equal(v.import(d),true);v.run('audio=()=>{};beep=()=>{};startMusic=()=>{}');v.events['startbtn:pointerdown']();assert.equal(v.run('S.outfit.hairstyle'),'twin');}
+});

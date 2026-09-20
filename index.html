@@ -1440,6 +1440,7 @@ function importCode(code){
     if(!d)return false;
     previous={state:S,forage:forageUntil,world,activeNation,player:{...player},muted,musicOn};
     applyLoaded(d,false);
+    startingFresh=false;
   }catch(e){
     if(previous){
       S=previous.state;forageUntil=previous.forage;world=previous.world;
@@ -5485,7 +5486,7 @@ document.addEventListener('touchmove',e=>{if(!(e.target.closest&&e.target.closes
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('pointerdown',()=>{if(bgmWanted&&musicOn){audio();startMusic();}},true);
 
-let pendingSex='girl';
+let pendingSex='girl',startingFresh=true;
 function updateIntroChar(){
   const g=$('pickGirl'),b=$('pickBoy'),lab=$('namelabel');
   if(g)g.classList.toggle('on',pendingSex==='girl');
@@ -5496,6 +5497,7 @@ $('pickGirl').addEventListener('pointerdown',()=>{pendingSex='girl';sTap();updat
 $('pickBoy').addEventListener('pointerdown',()=>{pendingSex='boy';sTap();updateIntroChar();});
 (async function init(){
   const saved=await loadGame();
+  startingFresh=!saved;
   if(saved)applyLoaded(saved); else S=freshState();
   pendingSex=(S&&S.sex==='boy')?'boy':'girl'; updateIntroChar();
   ensureStorybookArt('girl');ensureStorybookArt('boy');
@@ -5522,7 +5524,8 @@ $('startbtn').addEventListener('pointerdown',()=>{
   audio(); sYes();
   if(S){
     S.sex=pendingSex;
-    if(!S.tutorial)S.outfit.hairstyle=isBoy()?'short':'long';
+    if(startingFresh)S.outfit.hairstyle=isBoy()?'short':'long';
+    startingFresh=false;
   }
   applyName();
   bgmWanted=S&&S.music!==false;
