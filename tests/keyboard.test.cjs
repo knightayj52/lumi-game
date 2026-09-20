@@ -118,3 +118,21 @@ test('pointer release restores game focus after browser default button focus',as
  t.env.document.activeElement=editable('input');t.dispatch('document','pointerup');assert.equal(focused,1);
  t.env.document.activeElement={tagName:'BODY'};t.run("openModal('메뉴','')");t.dispatch('document','pointerup');assert.equal(focused,1);
 });
+
+test('a tap released between animation frames moves once instead of being lost',async()=>{
+ for(const [code,key,dx,dy] of [['ArrowRight','ArrowRight',1,0],['ArrowLeft','ArrowLeft',-1,0],['KeyW','w',0,-1],['KeyS','s',0,1],['','ㅇ',1,0]]){
+  const t=await game();t.run("world='room';blocked=()=>false;player.x=200;player.y=200");
+  press(t,code,{key});t.dispatch('window','keyup',{code,key});assert.equal(t.run('heldKeys.size'),0);
+  t.run('update(.05)');assert.equal(t.run('player.x'),200+dx*8.75);assert.equal(t.run('player.y'),200+dy*8.75);
+  t.run('update(.05)');assert.equal(t.run('player.x'),200+dx*8.75);assert.equal(t.run('player.y'),200+dy*8.75);
+ }
+});
+test('holding a direction moves at normal speed and release leaves no extra step',async()=>{
+ const t=await game();t.run("world='room';blocked=()=>false;player.x=200;player.y=200");press(t,'KeyD');
+ for(let i=0;i<10;i++)t.run('update(.02)');assert.ok(Math.abs(t.run('player.x')-235)<1e-8);
+ release(t,'KeyD');t.run('update(.02)');assert.ok(Math.abs(t.run('player.x')-235)<1e-8);
+});
+test('tap buffers are cleared on blur, menus and switching to touch',async()=>{
+ for(const clear of ['resetInput()',"openModal('메뉴','');closeModal()"]){const t=await game();press(t,'KeyD');release(t,'KeyD');t.run(clear);assert.deepEqual(movement(t),{dx:0,dy:0});}
+ const t=await game();press(t,'KeyD');release(t,'KeyD');t.events['joyzone:pointerdown']({pointerId:3,clientX:100,clientY:100,preventDefault(){}});t.dispatch('window','pointerup',{pointerId:3});assert.deepEqual(movement(t),{dx:0,dy:0});
+});

@@ -1682,6 +1682,7 @@ const joy={active:false,id:null,bx:0,by:0,dx:0,dy:0};
 const jz=$('joyzone'),jb=$('joybase'),jt=$('joythumb');
 let uiOpen=0; // 모달/대화 열림 수 (이동 잠금)
 const heldKeys=new Set();
+const pendingMoveKeys=new Set(); // Preserve taps released before the next animation frame.
 function isTypingTarget(target){
   const editor=target&&(target.isContentEditable?target:
     target.closest&&target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
@@ -1707,17 +1708,20 @@ function gameKey(e){
   return '';
 }
 function resetInput(){
-  heldKeys.clear();joyEnd();
+  heldKeys.clear();pendingMoveKeys.clear();joyEnd();
 }
 function movementInput(){
   if(!gameInputAllowed()||isTypingTarget(document.activeElement)){
     resetInput();return {dx:0,dy:0};
   }
   if(joy.active)return joy;
-  return {
-    dx:Number(heldKeys.has('ArrowRight')||heldKeys.has('KeyD'))-Number(heldKeys.has('ArrowLeft')||heldKeys.has('KeyA')),
-    dy:Number(heldKeys.has('ArrowDown')||heldKeys.has('KeyS'))-Number(heldKeys.has('ArrowUp')||heldKeys.has('KeyW'))
+  const down=key=>heldKeys.has(key)||pendingMoveKeys.has(key);
+  const input={
+    dx:Number(down('ArrowRight')||down('KeyD'))-Number(down('ArrowLeft')||down('KeyA')),
+    dy:Number(down('ArrowDown')||down('KeyS'))-Number(down('ArrowUp')||down('KeyW'))
   };
+  pendingMoveKeys.clear();
+  return input;
 }
 window.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey||isTypingTarget(e.target)||isTypingTarget(document.activeElement)){
@@ -1732,6 +1736,7 @@ window.addEventListener('keydown',e=>{
   if(move)joyEnd(); // The latest input takes over, including a missed touch release.
   if(heldKeys.has(code)||(!move&&e.repeat))return;
   heldKeys.add(code);
+  if(move)pendingMoveKeys.add(code);
   if(code==='Space'){audio();findNearest();doAction();}
 });
 window.addEventListener('keyup',e=>{heldKeys.delete(gameKey(e));});
@@ -1740,7 +1745,7 @@ document.addEventListener('focusin',e=>{if(isTypingTarget(e.target))resetInput()
 jz.addEventListener('pointerdown',e=>{
   if(!gameInputAllowed())return;
   e.preventDefault(); // 길게 눌러도 선택/메뉴가 뜨지 않게
-  focusGame();
+  focusGame();pendingMoveKeys.clear();
   joy.active=true;joy.id=e.pointerId;joy.bx=e.clientX;joy.by=e.clientY;joy.dx=0;joy.dy=0;
   jb.style.display=jt.style.display='block';
   jb.style.left=(joy.bx-55)+'px';jb.style.top=(joy.by-55)+'px';
