@@ -1244,7 +1244,7 @@ function scanAchv(force){
     }
   }
 }
-function titleStr(){const t=S&&S.title&&TITLES[S.title]; return t?(t.e+' '+t.n):'';}
+function titleStr(){const t=S&&S.title&&TITLES[S.title]; return t?((isBoy()&&t.e==='👸'?'🤴':t.e)+' '+(isBoy()?t.n.replace(/공주/g,'왕자').replace(/여왕/g,'왕'):t.n)):'';}
 /* ===== 계절 & 낮밤 ===== */
 const SEASONS=[
   {n:'봄', e:'🌸', petal:'🌸', tint:'rgba(255,220,235,0.10)'},
@@ -3185,6 +3185,7 @@ function spark(wx,wy,em){
 
 /* ============ HUD ============ */
 function updateHUD(){
+  $('portrait').textContent=sexEmoji();
   const tt=titleStr();
   $('hname').textContent=(tt?tt+' ':'')+pname();
   $('hhon').textContent=hon();

@@ -114,3 +114,8 @@ test('a failed storybook asset does not trap the player away from classic wardro
  const mock=adapter(),t=await setup(mock);t.run('openCloset()');mock.images[0].onerror();assert.equal(t.elements.get('storybookClassicFallback').style.display,'inline-block');
  t.events['storybookClassicFallback:click']();assert.equal(t.run('S.avatarStyle'),'classic');assert.match(t.elements.get('mbody').innerHTML,/data-kind="hair"/);
 });
+test('HUD portrait and equipped title follow the selected gender',async()=>{
+ const t=await setup();t.run("S.title='novice';S.sex='boy';updateHUD()");assert.equal(t.elements.get('portrait').textContent,'🤴');assert.match(t.elements.get('hname').textContent,/새내기 왕자/);
+ t.run("S.title='ruler';updateHUD()");assert.equal(t.run('titleStr()'),'🤴 별들의 왕');
+ t.run("S.sex='girl';updateHUD()");assert.equal(t.elements.get('portrait').textContent,'👸');assert.equal(t.run('titleStr()'),'👸 별들의 여왕');
+});
