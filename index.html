@@ -2627,8 +2627,9 @@ function chipRow(kind,defs,ownedArr,cur,canNone){
   return '<div style="margin-bottom:4px">'+html+'</div>';
 }
 function setOutfit(kind,k){
-  S.avatarStyle='classic';
-  if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
+  if(kind!=='wings'||(k&&k!=='butterfly'))S.avatarStyle='classic';
+  if(kind==='wings'){S.outfit.wings=k;if(k==='butterfly'&&S.avatarStyle==='storybook')ensureStorybookWings();}
+  else if(kind==='dress')S.outfit.dress=k; else if(kind==='hair')S.outfit.hair=k;
   else if(kind==='hairstyle')S.outfit.hairstyle=k; else if(kind==='acc')S.outfit.acc=k;
   else if(kind==='shoes')S.outfit.shoes=k;
   else if(kind==='wand')S.outfit.wand=k;
@@ -2637,7 +2638,7 @@ function setOutfit(kind,k){
 function openCloset(){
   let html='<div style="text-align:center"><canvas id="wcv" width="180" height="210" style="width:150px;height:175px"></canvas>'
     +'<div class="small">꾸미기 매력 보너스: 💖 +<span id="wch">'+gearCharm()+'</span></div></div>';
-  html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+(S.avatarStyle==='storybook')+'">동화풍 기본 의상</button><div class="small" style="margin-top:8px">새 그림은 공주·왕자의 기본 의상이에요.<br>아래에서 개별 의상을 고르면 기존 자유 꾸미기로 바뀌어요.<br>동화풍에서는 선택 장비의 모양이 표시되지 않지만 장비·능력치는 유지돼요.</div></div>';
+  html+='<div class="card" style="text-align:center"><button id="storybookToggle" class="pillbtn mint" type="button" aria-pressed="'+(S.avatarStyle==='storybook')+'">동화풍 기본 의상</button><div class="small" style="margin-top:8px">새 그림은 공주·왕자의 기본 의상이에요.<br>나비 날개는 새 그림에서도 착용하고 벗을 수 있어요.<br>다른 의상·머리·장비를 고르면 기존 자유 꾸미기로 바뀌어요.<br>새 그림에서는 나비 날개 외의 선택 장비 모양이 표시되지 않지만 능력치는 유지돼요.</div></div>';
   html+='<div class="small" style="margin:8px 4px 4px">👗 드레스</div>'+chipRow('dress',DRESSES,S.owned.dresses,S.outfit.dress);
   html+='<div class="small" style="margin:8px 4px 4px">💇 머리 색</div>'+chipRow('hair',HAIRS,S.owned.hairs,S.outfit.hair);
   html+='<div class="small" style="margin:8px 4px 4px">💈 헤어스타일</div>'+chipRow('hairstyle',HAIRSTYLES,S.owned.hairstyles,S.outfit.hairstyle);
@@ -2645,6 +2646,7 @@ function openCloset(){
   if(S.owned.wands.length)html+='<div class="small" style="margin:8px 4px 4px">🪄 요술봉</div>'+chipRow('wand',WANDS,S.owned.wands,S.outfit.wand,true);
   if(S.owned.gloves.length)html+='<div class="small" style="margin:8px 4px 4px">🧤 장갑</div>'+chipRow('gloves',GLOVES,S.owned.gloves,S.outfit.gloves,true);
   html+='<div class="small" style="margin:8px 4px 4px">✨ 장식</div>'+chipRow('acc',ACCS,S.owned.accs,S.outfit.acc);
+  html+='<div id="storybookWingStatus" class="small" role="status"></div><button id="storybookWingRetry" class="pillbtn" type="button" style="display:none">날개 그림 다시 불러오기</button>';
   html+='<div class="small" style="margin:8px 4px 4px">🦋 날개</div><div style="margin-bottom:4px">';
   html+='<button class="chip'+(!S.outfit.wings?' on':'')+'" data-kind="wings" data-k="none">없음</button>';
   for(const k in WINGS){
@@ -2657,14 +2659,15 @@ function openCloset(){
   html+='<div class="small" style="text-align:center;margin-top:8px;color:#a98">🪙 표시된 아이템은 코인으로 바로 살 수 있어요 · 내 코인: 🪙 '+S.coins+'</div>';
   openModal('👗 옷장',html);
   $('storybookToggle').addEventListener('click',toggleStorybookStyle);
-  updateStorybookButton();drawCloset();
+  $('storybookWingRetry').addEventListener('click',()=>ensureStorybookWings(true));
+  updateStorybookButton();updateStorybookWingStatus();drawCloset();
   const OWNED={dress:S.owned.dresses,hair:S.owned.hairs,hairstyle:S.owned.hairstyles,acc:S.owned.accs,shoes:S.owned.shoes,wand:S.owned.wands,gloves:S.owned.gloves};
   const DEFS={dress:DRESSES,hair:HAIRS,hairstyle:HAIRSTYLES,acc:ACCS,shoes:SHOES,wand:WANDS,gloves:GLOVES};
   mbody.querySelectorAll('.chip').forEach(b=>b.addEventListener('pointerdown',()=>{
     const kind=b.dataset.kind,k=b.dataset.k;
 
     if(kind==='wings'){
-      if(k==='none'){S.avatarStyle='classic';S.outfit.wings=false;sPick();openCloset();return;}
+      if(k==='none'){setOutfit('wings',false);sPick();updateHUD();saveGame();openCloset();return;}
       const wdf=WINGS[k];
       if(!S.owned.wings.includes(k)){
         if(wdf.buy){
@@ -2675,7 +2678,7 @@ function openCloset(){
           addInv('gem',-wdf.gems); S.owned.wings.push(k); sLevel(); confetti(20); toast('💎 '+wdf.n+' 획득!');
         }else{toast('🔒 '+(wdf.how||'특별한 방법으로')+' 얻어요');sNo();return;}
       }
-      S.avatarStyle='classic';S.outfit.wings=k; sPick(); updateHUD(); openCloset(); return;
+      setOutfit('wings',k); sPick(); updateHUD(); saveGame(); openCloset(); return;
     }
     if(k==='__none'){setOutfit(kind,false);sPick();openCloset();return;}
     const owned=OWNED[kind], d=DEFS[kind][k];
@@ -3831,7 +3834,33 @@ function drawNpcs(){
 /* ---- 공주님 ---- */
 // 성별별 이미지 캐시. 저장되는 표시 방식과 비동기 로딩 상태를 분리해요.
 const storybookArt={girl:{ready:false,loading:false,failed:false,image:null},boy:{ready:false,loading:false,failed:false,image:null}};
+// Optional painted equipment; loaded only when equipped, shared by both genders.
+const storybookWings={ready:false,loading:false,failed:false,image:null};
+function updateStorybookWingStatus(){
+  const active=S&&S.avatarStyle==='storybook'&&S.outfit.wings==='butterfly';
+  const status=$('storybookWingStatus'),retry=$('storybookWingRetry');
+  if(status)status.textContent=active?(storybookWings.failed?'날개 그림을 불러오지 못해 기존 그림으로 보여 드려요.':storybookWings.loading?'나비 날개를 불러오는 중이에요.':''):'';
+  if(retry)retry.style.display=active&&storybookWings.failed?'inline-block':'none';
+}
+function ensureStorybookWings(retry=false){
+  const art=storybookWings;
+  if(art.ready||art.loading||(art.failed&&!retry)||typeof Image==='undefined')return;
+  const img=new Image();art.image=img;art.loading=true;art.failed=false;
+  const finished=()=>{updateStorybookWingStatus();drawCloset();};
+  img.onerror=()=>{art.loading=false;art.ready=false;art.failed=true;finished();};
+  img.onload=()=>{if(img.naturalWidth!==768||img.naturalHeight!==192){img.onerror();return;}
+    art.ready=true;art.loading=false;art.failed=false;finished();};
+  img.src='assets/lumi-butterfly-wings.webp';updateStorybookWingStatus();
+}
+function drawStorybookWings(g,p,unit,walkT,moving){
+  g.save();
+  // Gentle independent flutter. The character's feet and original art stay fixed.
+  g.scale(1+Math.sin(walkT*(moving?8:3))*.035,1);
+  g.drawImage(storybookWings.image,p.row*256,0,256,192,-72*unit,-124*unit,144*unit,108*unit);
+  g.restore();
+}
 function updateStorybookButton(){
+  updateStorybookWingStatus();
   const b=$('storybookToggle');if(!b||!S)return;
   const art=storybookArt[isBoy()?'boy':'girl'];
   b.textContent=S.avatarStyle==='storybook'?(art.loading?'새 그림을 불러오는 중…':art.failed?'그림 다시 불러오기':'기존 자유 꾸미기로 전환'):'동화풍 기본 의상으로 전환';
@@ -3867,11 +3896,15 @@ function drawStorybookCharacter(g,x,y,s,walkT,moving,facing){
   const sex=isBoy()?'boy':'girl',art=storybookArt[sex];
   ensureStorybookArt(sex);
   if(!art.ready)return false;
+  const wings=S.outfit.wings==='butterfly';
+  if(wings){ensureStorybookWings();if(!storybookWings.ready)return false;}
   const p=storybookPose(walkT,moving,facing),unit=.6*s;
   g.save();g.translate(x,y);
   g.fillStyle='rgba(46,70,57,.17)';g.beginPath();g.ellipse(0,2*s,14*s,4*s,0,0,Math.PI*2);g.fill();
   if(p.flip)g.scale(-1,1);
+  if(wings&&p.row!==2)drawStorybookWings(g,p,unit,walkT,moving);
   g.drawImage(art.image,p.frame*144,p.row*180,144,180,-72*unit,-172*unit,144*unit,180*unit);
+  if(wings&&p.row===2)drawStorybookWings(g,p,unit,walkT,moving);
   g.restore();return true;
 }
 

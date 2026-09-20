@@ -60,3 +60,23 @@ test('walk frames, idle frame and four directions select the correct atlas regio
  t.env.dx=dx;t.env.dy=dy;assert.deepEqual(JSON.parse(t.run('JSON.stringify(storybookPose(.26,true,{dx,dy}))')),{row,flip,frame:2});
  }assert.equal(t.run('storybookPose(7,false).frame'),1);assert.equal(t.run('storybookPose(.5,true).frame'),0);
 });
+test('painted butterfly equipment persists for both genders without changing costume or stats',async()=>{
+ for(const sex of ['girl','boy']){const t=await setup();t.env.sex=sex;t.run("S.sex=sex;S.owned.wings.push('butterfly')");const before=t.run('JSON.stringify([S.stats,S.owned,S.outfit.dress,S.outfit.hair])');
+ t.run("setOutfit('wings','butterfly')");assert.equal(t.run('S.avatarStyle'),'storybook');assert.equal(t.run('gearCharm()>=3'),true);
+ await t.run('saveGame()');const u=await setup({saved:t.raw});assert.equal(u.run('S.outfit.wings'),'butterfly');assert.equal(u.run('S.avatarStyle'),'storybook');assert.equal(u.run('JSON.stringify([S.stats,S.owned,S.outfit.dress,S.outfit.hair])'),before);
+ u.run("setOutfit('wings',false)");assert.equal(u.run('S.avatarStyle'),'storybook');assert.equal(u.run('S.outfit.wings'),false);
+ u.run("setOutfit('wings','fairy')");assert.equal(u.run('S.avatarStyle'),'classic');}
+});
+test('wing loading is lazy, shared, validated and retryable without changing equipment',async()=>{
+ const mock=adapter(),t=await setup(mock);t.run("setOutfit('wings','butterfly');ensureStorybookWings()");assert.equal(mock.images.length,3);assert.equal(mock.images[2].src,'assets/lumi-butterfly-wings.webp');
+ mock.images[2].onload();assert.equal(t.run('storybookWings.failed'),true);t.run('ensureStorybookWings()');assert.equal(mock.images.length,3);
+ t.run('ensureStorybookWings(true)');assert.equal(mock.images.length,4);t.run("setOutfit('wings',false)");mock.images[3].naturalWidth=768;mock.images[3].naturalHeight=192;mock.images[3].onload();assert.equal(t.run('S.outfit.wings'),false);assert.equal(t.run('S.avatarStyle'),'storybook');
+ t.run("S.sex='boy';setOutfit('wings','butterfly')");assert.equal(mock.images.length,4);
+});
+test('wing renderer orders layers for front, side and rear and mirrors left with character',async()=>{
+ const mock=adapter(),t=await setup(mock);mock.images[0].onload();t.run("setOutfit('wings','butterfly')");assert.equal(t.run('drawStorybookCharacter(ctx,0,0,1,0,false)'),false);
+ const wing=mock.images[2];wing.naturalWidth=768;wing.naturalHeight=192;wing.onload();
+ const calls=[],scales=[];t.env.g={save(){},restore(){},translate(){},beginPath(){},ellipse(){},fill(){},scale(...args){scales.push(args)},drawImage(...args){calls.push(args)}};
+ for(const [dx,dy,row]of [[0,1,0],[1,0,1],[-1,0,1],[0,-1,2]]){calls.length=0;scales.length=0;t.env.face={dx,dy};t.run('drawStorybookCharacter(g,0,0,1,.2,true,face)');assert.equal(calls.length,2);assert.equal(calls[row===2?1:0][0],wing);assert.equal(calls[row===2?1:0][1],row*256);assert.equal(scales.some(a=>a[0]===-1&&a[1]===1),dx===-1);}
+ calls.length=0;t.run("setOutfit('wings',false);drawStorybookCharacter(g,0,0,1,0,false)");assert.equal(calls.length,1);assert.equal(calls[0][0],mock.images[0]);
+});
