@@ -1694,6 +1694,8 @@ function focusGame(){
   if(gameInputAllowed()&&cv.focus)cv.focus({preventScroll:true});
 }
 cv.addEventListener('pointerdown',focusGame);
+// Pointerdown buttons may move browser focus after their handler finishes.
+document.addEventListener('pointerup',()=>{if(!isTypingTarget(document.activeElement))focusGame();});
 function gameKey(e){
   const codes=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'];
   if(codes.includes(e.code))return e.code;

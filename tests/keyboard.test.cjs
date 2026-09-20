@@ -111,3 +111,10 @@ test('starting and closing overlays return focus to the playable canvas',async()
   assert.equal(focused,before+1);press(t,'KeyD');assert.equal(movement(t).dx,1);release(t,'KeyD');
  }
 });
+
+test('pointer release restores game focus after browser default button focus',async()=>{
+ const t=await game();let focused=0;const canvas=t.elements.get('cv');canvas.focus=()=>{focused++;t.env.document.activeElement=canvas;};
+ t.env.document.activeElement={tagName:'BODY'};t.dispatch('document','pointerup');assert.equal(focused,1);
+ t.env.document.activeElement=editable('input');t.dispatch('document','pointerup');assert.equal(focused,1);
+ t.env.document.activeElement={tagName:'BODY'};t.run("openModal('메뉴','')");t.dispatch('document','pointerup');assert.equal(focused,1);
+});
