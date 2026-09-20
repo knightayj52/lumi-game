@@ -82,7 +82,7 @@ test('layering uses selected body, hair style, wing atlas row and left mirroring
  const t=await setup();t.run("for(const n of ['modular-girl-body','modular-girl-heads','modular-accessories','modular-wings'])paintedAssets[n]={ready:true,image:n};tintPainted=(n)=>n;S.outfit.wings='dragon';S.outfit.hairstyle='twin';S.outfit.acc='crown'");
  const calls=[],scales=[];t.env.g={save(){},restore(){},translate(){},beginPath(){},ellipse(){},fill(){},scale(...a){scales.push(a)},drawImage(...a){calls.push(a)}};
  for(const [dx,dy,row]of [[0,1,0],[1,0,1],[-1,0,1],[0,-1,2]]){calls.length=0;scales.length=0;t.env.face={dx,dy};assert.equal(t.run('drawStorybookCharacter(g,0,0,1,.26,true,face)'),true);
- const wi=calls.findIndex(a=>a[0]==='modular-wings'),bi=calls.findIndex(a=>a[0]==='modular-girl-body'),hi=calls.findIndex(a=>a[0]==='modular-girl-heads');assert.equal(wi<bi,row!==2);assert.ok(hi>bi);assert.equal(calls[wi][1],row*256);assert.equal(calls[wi][2],9*192);assert.equal(calls[hi][1],row*144);assert.equal(calls[hi][2],2*180);assert.equal(scales.some(a=>a[0]<0),dx===-1);}
+ const wi=calls.findIndex(a=>a[0]==='modular-wings'),bi=calls.findIndex(a=>a[0]==='modular-girl-body'),hi=calls.findLastIndex(a=>a[0]==='modular-girl-heads');assert.equal(wi<bi,row!==2);assert.ok(hi>bi);assert.equal(calls[wi][1],row*256);assert.equal(calls[wi][2],9*192);assert.equal(calls[hi][1],row*144);assert.equal(calls[hi][2],2*180);assert.equal(scales.some(a=>a[0]<0),dx===-1);}
 });
 test('all 60 pet species map to distinct atlas cells',async()=>{
  const t=await setup();t.run("paintedAssets['storybook-pets']={ready:true,image:'pets'}");const calls=[];t.env.g={drawImage(...a){calls.push(a)}};t.run('for(const d of Object.values(PETSPEC))drawPaintedCreature(g,d,0,0,40)');assert.equal(calls.length,60);assert.equal(new Set(calls.map(a=>a[1]+','+a[2])).size,60);assert.equal(calls[59][2],14*256);
@@ -100,4 +100,40 @@ test('continuing or importing a save never replaces purchased hair before tutori
  for(const sex of ['girl','boy']){const t=await setup(),d=t.fresh();d.sex=sex;d.tutorial=false;d.owned.hairstyles.push('twin');d.outfit.hairstyle='twin';
  const u=await setup({saved:JSON.stringify(d)});u.run('audio=()=>{};beep=()=>{};startMusic=()=>{}');u.events['startbtn:pointerdown']();assert.equal(u.run('S.outfit.hairstyle'),'twin');assert.equal(u.run('S.sex'),sex);
  const v=await setup();assert.equal(v.import(d),true);v.run('audio=()=>{};beep=()=>{};startMusic=()=>{}');v.events['startbtn:pointerdown']();assert.equal(v.run('S.outfit.hairstyle'),'twin');}
+});
+
+test('all hairstyles keep lower hair behind collars in front/side poses and over the back in rear poses',async()=>{
+ const t=await setup(),calls=[];
+ t.env.g={save(){},restore(){},translate(){},beginPath(){},ellipse(){},fill(){},scale(){},drawImage(...a){calls.push(a)}};
+ t.run("tintPainted=n=>n;S.outfit.wings=false;S.outfit.acc=false;S.outfit.wand=false;S.outfit.gloves=false");
+ for(const sex of ['girl','boy']){
+  t.env.sex=sex;t.run("S.sex=sex;for(const n of ['modular-'+sex+'-body','modular-'+sex+'-heads','modular-accessories'])paintedAssets[n]={ready:true,image:n}");
+  for(const hs of t.run('Object.keys(HAIRSTYLES)'))for(const [dx,dy]of [[0,1],[1,0],[-1,0],[0,-1]])for(let frame=0;frame<4;frame++){
+   calls.length=0;t.env.hs=hs;t.env.face={dx,dy};t.env.time=frame/8;
+   t.run('S.outfit.hairstyle=hs;drawStorybookCharacter(g,0,0,1,time,true,face)');
+   const body=calls.findIndex(a=>a[0]==='modular-'+sex+'-body');
+   const heads=calls.map((a,i)=>({a,i})).filter(v=>v.a[0]==='modular-'+sex+'-heads');
+   if(dy===-1){assert.equal(heads.length,1);assert.ok(heads[0].i>body);assert.equal(heads[0].a[4],180);}
+   else{
+    assert.equal(heads.length,2);const [rear,front]=heads;
+    assert.ok(rear.i<body);assert.ok(front.i>body);
+    // Rear starts exactly at the body's neck; upper hair ends at the same seam.
+    assert.equal(rear.a[6],-100);assert.ok(Math.abs(front.a[6]+front.a[8]+100)<1e-9);
+    assert.ok(Math.abs(rear.a[4]+front.a[4]-180)<1e-9);
+    assert.ok(Math.abs(front.a[2]+front.a[4]-rear.a[2])<1e-9);
+   }
+  }
+ }
+});
+
+test('rear hair dye does not leave a brown rectangle where a neck would be in front views',async()=>{
+ const t=await setup(),width=432,height=1080,data=new Uint8ClampedArray(width*height*4);
+ const put=(x,y,r,g,b)=>data.set([r,g,b,255],(y*width+x)*4);
+ put(72,75,155,80,36);put(360,75,155,80,36);put(360,80,230,170,120);
+ const canvas={width,height,getContext:()=>({drawImage(){},getImageData:()=>({data}),putImageData(){}})};
+ t.env.document.createElement=()=>canvas;t.env.img={naturalWidth:width,naturalHeight:height};
+ t.run("paintedAssets['modular-girl-heads']={ready:true,image:img};tintPainted('modular-girl-heads','hair',HAIRS.black.c)");
+ const at=(x,y)=>Array.from(data.slice((y*width+x)*4,(y*width+x)*4+3));
+ assert.deepEqual(at(72,75),[155,80,36]);assert.notDeepEqual(at(360,75),[155,80,36]);
+ assert.deepEqual(at(360,80),[230,170,120]);
 });
