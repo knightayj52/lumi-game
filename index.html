@@ -233,7 +233,8 @@ button{font-family:inherit;color:inherit;border:none;background:none;cursor:poin
   <div id="ftrack"><div id="fzone"></div><div id="fmark">🎣</div></div>
   <div id="fres"></div>
   <button id="fbtn">찌 던지기 🎣</button>
-  <button id="fdexbtn" class="pillbtn gray" style="margin-top:8px;width:100%">📖 물고기 도감</button>
+  <button id="fclose" class="pillbtn gray" style="margin-top:8px;width:100%">낚시 그만하기</button>
+  <button id="fdexbtn" class="pillbtn gray" style="margin-top:8px;width:100%">📖 낚시 마치고 도감 보기</button>
 </div></div>
 
 <div id="capture"><div id="fishcard">
@@ -1994,6 +1995,17 @@ function openSeedSheet(i){
 /* ============ 낚시 (지역·등급별 · 입질 · 도감) ============ */
 const fishEl=$('fishing'),fzone=$('fzone'),fmark=$('fmark'),fbtn=$('fbtn'),fres=$('fres');
 let fish={on:false,phase:'idle'}; // idle→wait→bite→time→done
+let fishFrame=null;
+function stopFishFrame(){
+  if(fishFrame!==null)cancelAnimationFrame(fishFrame);
+  fishFrame=null;
+}
+function closeFishing(){
+  if(!fish.on)return;
+  stopFishFrame();fish.on=false;fish.phase='idle';fishEl.style.display='none';
+  uiOpen=Math.max(0,uiOpen-1);resetInput();
+}
+$('fclose').addEventListener('pointerdown',closeFishing);
 function pickFishHere(){
   const zid=fishZoneAt(), pool=FISHZONES[zid].pool;
   // 등급 가중치 (전설은 명성 높을수록 조금 더)
@@ -2006,7 +2018,9 @@ function pickFishHere(){
   return cands[Math.floor(Math.random()*cands.length)];
 }
 function openFishing(){
-  uiOpen++; fishEl.style.display='flex';
+  // Retrying reuses the same window and its single movement lock.
+  if(!fish.on)uiOpen++;
+  stopFishFrame();resetInput();fishEl.style.display='flex';
   const zid=fishZoneAt();
   fish={on:true,phase:'wait',zid,fk:pickFishHere(),combo:0};
   $('ftitle').textContent='🎣 '+FISHZONES[zid].n;
@@ -2014,7 +2028,7 @@ function openFishing(){
   fzone.style.display='none'; fmark.textContent='🎣'; fmark.style.top='6%';
   fres.textContent=''; fbtn.textContent='기다리는 중…'; fbtn.style.opacity='0.6';
   fish.biteAt=now()+rand(900,2600);
-  requestAnimationFrame(fishLoop);
+  fishFrame=requestAnimationFrame(fishLoop);
 }
 function startTiming(){
   const rr=FRAR[FISH[fish.fk].rar];
@@ -2031,6 +2045,7 @@ function startTiming(){
   fbtn.textContent='잡기! 🎣'; fbtn.style.opacity='1';
 }
 function fishLoop(){
+  fishFrame=null;
   if(!fish.on)return;
   const t=now();
   if(fish.phase==='wait'){
@@ -2052,14 +2067,14 @@ function fishLoop(){
     const p=(Math.sin((t-fish.t0)/1000*fish.spd)+1)/2;
     fmark.style.top=(6+p*88)+'%'; fish.pos=p;
   }
-  requestAnimationFrame(fishLoop);
+  if(fish.phase!=='done')fishFrame=requestAnimationFrame(fishLoop);
 }
 fbtn.addEventListener('pointerdown',()=>{
   audio();
   if(!fish.on)return;
   if(fish.phase==='done'){
     if(fish.miss){openFishing();return;} // 다시
-    fishEl.style.display='none';fish.on=false;uiOpen=Math.max(0,uiOpen-1);return;
+    closeFishing();return;
   }
   if(fish.phase==='wait'){ // 너무 일찍
     fres.textContent='아직이에요~ 입질을 기다려요';return;
@@ -2512,7 +2527,7 @@ $('btnSave').addEventListener('pointerdown',()=>{audio();saveGame({notify:true})
 $('btnSync').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;openTransfer();});
 $('btnPets').addEventListener('pointerdown',()=>{audio();openPets();});
 $('btnRoom').addEventListener('pointerdown',()=>{audio();if(uiOpen>0)return;warp(enterRoom);});
-$('fdexbtn').addEventListener('pointerdown',()=>{audio();openFishDex();});
+$('fdexbtn').addEventListener('pointerdown',()=>{audio();closeFishing();openFishDex();});
 $('capbtn').addEventListener('pointerdown',()=>{
   if(!cap.on)return; audio();
   const my=(6+cap.pos*88)/100;

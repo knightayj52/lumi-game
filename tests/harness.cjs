@@ -64,6 +64,7 @@ async function setup(options = {}) {
     },
     navigator: {}, setTimeout: noop, clearTimeout: noop, setInterval: noop,
     requestAnimationFrame: fn => frames.push(fn),
+    cancelAnimationFrame: id => { frames[id-1]=null; },
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     escape, unescape,
